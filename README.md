@@ -2,7 +2,7 @@
 MyClockESP32 Final
 
 ## 🕒 MyClockESP32 v1.5 – Ultra-Stable Edition
-Profesjonalny zegar oparty na układzie ESP32, synchronizowany czasem NTP, wyposażony w czujnik temperatury, inteligentną regulację jasności oraz rozbudowany panel konfiguracyjny "Neon-Glow".
+Profesjonalny zegar oparty na układzie ESP32, synchronizowany czasem NTP, wyposażony w czujnik temperatury DS18B20, inteligentną regulację jasności oraz rozbudowany panel konfiguracyjny "Neon-Glow".
 ## 🚀 Kluczowe cechy
 
 * Synchronizacja NTP: Precyzyjny czas pobierany z serwerów GUM (tempus1.gum.gov.pl) z automatyczną obsługą stref czasowych i czasu letniego (DST).
