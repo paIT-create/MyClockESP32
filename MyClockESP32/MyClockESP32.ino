@@ -1,5 +1,5 @@
 /*
-  ESP32 Clock + Thermometer (DS18B20) + 4x7seg (CC) via 74HC595 + ULN2803
+  ESP32 Clock + Thermometer (DS18B20) + 4x7seg (CC/CA) via 74HC595 + (ULN2803/PNP)
   Ultra‑Stable Edition (2026‑04)
 
   - Display refresh in hardware timer ISR (no blanking)
@@ -43,8 +43,13 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define HAS_BUZZER true  // Zmień na false dla wersji bez głośnika
-#define FW_VERSION "CC202604.1.5.2-AudioGlow"
+#define FW_VERSION "[CC/CA]202604.1.5.3-Versatile AudioGlow"
+// --- KONFIGURACJA SPRZĘTOWA ---
+#define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
+#define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika
+
+// Logika dla segmentów (74HC595), w CA segment świeci przy stanie niskim (odwrócenie fontu)
+#define SEG_MASK(s) (DISPLAY_COMMON_CATHODE ? (s) : ~(s))
 
 // -----------------------------------------------------------------------------
 // Pinout
@@ -65,8 +70,9 @@ static const int PIN_DIGIT_0 = 32;  // leftmost
 static const int PIN_DIGIT_1 = 33;
 static const int PIN_DIGIT_2 = 25;
 static const int PIN_DIGIT_3 = 26;
-// cyfry włączane stanem wysokim
-static const bool DIGIT_ENABLE_HIGH = true;
+// Automatyczne ustawienie logiki cyfr na podstawie typu wyświetlacza
+// CC (NPN/Direct) wysokiego (HIGH), CA (PNP) potrzebuje stanu niskiego (LOW)
+static const bool DIGIT_ENABLE_HIGH = DISPLAY_COMMON_CATHODE;
 // -----------------------------------------------------------------------------
 // 7-seg segments and font
 // -----------------------------------------------------------------------------
@@ -211,10 +217,10 @@ void IRAM_ATTR onDisplayTimer() {
   allDigitsOff();  // Wygaszenie wszystkich cyfr
 
   if (g_otaActive) {
-    write595(FONT_HEX[10]);  // Litera 'A' podczas aktualizacji
+    write595(SEG_MASK(FONT_HEX[10]));  // Litera 'A' podczas aktualizacji
     digitOn(0);
   } else {
-    write595(g_displaySeg[currentDigit]);
+    write595(SEG_MASK(g_displaySeg[currentDigit]));
     digitOn(currentDigit);
     currentDigit = (currentDigit + 1) & 0x03;  // Przełącz na następną cyfrę
   }
@@ -347,8 +353,14 @@ static const int PWM_CH = 0;
 static const int PWM_FREQ = 20000;  // 20 kHz
 static const int PWM_RES = 8;       // 0..255
 // OE is active LOW: duty=0 -> full ON, duty=255 -> off
-static inline void applyBrightness(uint8_t logical) {
-  uint8_t oeDuty = 255 - logical;
+// static inline void applyBrightness(uint8_t logical) {
+//   uint8_t oeDuty = 255 - logical;
+//   ledcWrite(PWM_CH, oeDuty);
+// }
+void applyBrightness(uint8_t logical) {
+  // Jeśli w wersji CA jasność będzie działać "odwrotnie",
+  // zamień miejscami 'logical' i '(255 - logical)'
+  uint8_t oeDuty = DISPLAY_COMMON_CATHODE ? (255 - logical) : logical;
   ledcWrite(PWM_CH, oeDuty);
 }
 
@@ -412,7 +424,6 @@ void BrightnessTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
-
 // -----------------------------------------------------------------------------
 // TimeTask
 // -----------------------------------------------------------------------------
@@ -791,12 +802,15 @@ void WiFiTask(void *pv) {
 
   // OTA callbacks
   ota.onStart([]() {
+    beep(1800, 60);
     g_otaActive = true;
   });
   ota.onEnd([]() {
     g_otaActive = false;
     Serial.println("OTA Zakończone. Restart za 5 sekund...");
-
+    beep(1200, 60);
+    vTaskDelay(pdMS_TO_TICKS(60));
+    beep(1800, 60);
     // Tworzymy zadanie restartu, aby dać czas na wysłanie odpowiedzi do przeglądarki
     xTaskCreate([](void *pv) {
       vTaskDelay(pdMS_TO_TICKS(5000));  // 5 sekund zwłoki
