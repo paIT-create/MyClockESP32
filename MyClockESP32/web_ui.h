@@ -67,7 +67,7 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
   background:#444;color:white;box-shadow:0 0 18px #666;
 }
 .statusBox{
-  margin-top:35px;padding:18px;background:#0a0c12;border-radius:12px;
+  margin-top:5px;padding:18px;background:#0a0c12;border-radius:12px;
   box-shadow:inset 0 0 18px #0070ffaa,inset 0 0 35px #0030aa55;
 }
 .titleSmall{
@@ -102,6 +102,11 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
   font-size: 18px;
   vertical-align: middle;
   opacity: 0.8;
+}
+#hdrID {
+  margin-left: 10px;
+  color: #6ab8ff;
+  letter-spacing: 1px;
 }
 </style>
 
@@ -148,17 +153,17 @@ function save(){
     else alert('Błąd zapisu');
   });
 }
-
-function applyAdv() {
-  let to = document.getElementById('tOff').value;
-  let rd = document.getElementById('rDark').value;
-  let rb = document.getElementById('rBright').value;
-  fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`).then(() => {
-    alert('Zastosowano! Nie zapomnij zapisać na stałe.');
-    console.log("Parametry kalibracji przesłane");
-    isEditing = false; // Po zapisaniu pozwalamy na odświeżenie pól z urządzenia
-    });
-}
+// Funkcja zmieniona pod obsługę Enter, na dole sekcji
+// function applyAdv() {
+//   let to = document.getElementById('tOff').value;
+//   let rd = document.getElementById('rDark').value;
+//   let rb = document.getElementById('rBright').value;
+//   fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`).then(() => {
+//     alert('Zastosowano! Nie zapomnij zapisać na stałe.');
+//     console.log("Parametry kalibracji przesłane");
+//     isEditing = false; // Po zapisaniu pozwalamy na odświeżenie pól z urządzenia
+//     });
+// }
 
 function reset(){
   if(confirm('Czy na pewno przywrócić ustawienia fabryczne?')){
@@ -242,6 +247,11 @@ function loadStatus(){
     box.innerHTML='';
 
     lines.forEach(l=>{
+      if(l.startsWith("id=")){
+        let deviceID = l.substring(3).trim();
+        let hdr = document.getElementById('hdrID');
+        if(hdr) hdr.textContent = "[ID: " + deviceID + "]";
+      }
       let div=document.createElement('div');
       div.className='statusLine';
       div.textContent=l;
@@ -388,6 +398,44 @@ function setEdit(state) {
 // Odświeżanie co 1 sekundę
 setInterval(loadStatus, 1000);
 window.onload = loadStatus;
+
+// Uniwersalna obsługa klawisza Enter dla wszystkich pól formularza
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    let el = document.activeElement; // Sprawdzamy, w którym polu jest kursor
+    if (el && (el.tagName === "INPUT")) {
+      el.blur(); // "Zdejmuje" kursor z pola (to uruchamia onblur i setEdit(false))
+      
+      // Jeśli to pole kalibracji, od razu wysyłamy dane do zegara
+      if (["tOff", "rDark", "rBright"].includes(el.id)) {
+        applyAdv();
+      }
+      
+      // Jeśli to pole godziny budzika, odświeżamy ustawienia alarmu
+      if (el.id === "alTime") {
+        updateAlarm();
+      }
+    }
+  }
+});
+
+// Zaktualizowana funkcja applyAdv (zdejmuje blokadę edycji po wysłaniu)
+function applyAdv() {
+  let to = document.getElementById('tOff').value;
+  let rd = document.getElementById('rDark').value;
+  let rb = document.getElementById('rBright').value;
+  
+  fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`)
+    .then(() => {
+      console.log("Parametry kalibracji wysłane pomyślnie");
+      // KLUCZOWE: Pozwalamy skryptowi loadStatus ponownie nadpisywać pola danymi z ESP32
+      isEditing = false; 
+    })
+    .catch(err => {
+      console.error("Błąd przesyłania kalibracji:", err);
+      isEditing = false;
+    });
+}
 </script>
 
 </head>
@@ -488,16 +536,18 @@ window.onload = loadStatus;
     <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
   </div>
 </details>
+<button class="btn reset" onclick="reset()">↺ Reset ustawień</button>
+<button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
+
 <div style="font-size:10px; color:#333; text-align:center; margin-top:15px; letter-spacing:1px;">
   MyClock ESP32 | <span id="fwVer">v1.x</span>
 </div>
-<button class="btn reset" onclick="reset()">↺ Reset</button>
-<button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
-
-<div class="statusBox">
-  <div class="titleSmall">Status urządzenia</div>
-  <div id="statusBox">Ładowanie...</div>
-</div>
+<details class="statusBox" style="cursor:pointer;">
+  <summary class="titleSmall" style="outline:none; list-style:none; display:flex; align-items:center;">
+    📊 Status <span id="hdrID" style="margin-left:10px; opacity:0.8; font-size:17px; font-family:monospace; color:#6ab8ff;">[ID: ----]</span>
+  </summary>
+  <div id="statusBox" style="margin-top:10px;">Ładowanie...</div>
+</details>
 
 <button class="btn reset" onclick="reboot()">🔄 Restartuj System</button>
 
