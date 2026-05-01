@@ -108,6 +108,31 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
   color: #6ab8ff;
   letter-spacing: 1px;
 }
+#nightIcon {
+  animation: moonPulse 3s ease-in-out infinite;
+}
+@keyframes moonPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes savePulse {
+  0% { box-shadow: 0 0 15px #0078ffcc; transform: scale(1); }
+  50% { box-shadow: 0 0 35px #0078ff, 0 0 50px #0050ffaa; transform: scale(1.02); }
+  100% { box-shadow: 0 0 15px #0078ffcc; transform: scale(1); }
+}
+.pulse-active {
+  animation: savePulse 2s infinite ease-in-out;
+  border: 1px solid #6ab8ff !important;
+}
+@keyframes advPulse {
+  0% { box-shadow: 0 0 15px #ffa600cc; transform: scale(1); }
+  50% { box-shadow: 0 0 35px #ffaa00, 0 0 50px #ff880088; transform: scale(1.02); }
+  100% { box-shadow: 0 0 15px #ffa600cc; transform: scale(1); }
+}
+.adv-pulse {
+  animation: advPulse 2s infinite ease-in-out;
+  border: 1px solid #ffdd88 !important;
+}
 </style>
 
 <script>
@@ -149,21 +174,15 @@ function setAuto() {
 function save(){
   // ZMIANA: Strzelamy do nowego endpointu /save, który faktycznie robi prefs.put
   fetch('/save').then(r => {
-    if(r.ok) alert('Ustawienia zapisane trwale w pamięci Flash');
-    else alert('Błąd zapisu');
+    if(r.ok) {
+      alert('Ustawienia zapisane trwale w pamięci Flash');
+      // wyłącz pulsowanie po udanym zapisie
+      document.getElementById('saveBtn').classList.remove('pulse-active');
+    } else {
+      alert('Błąd zapisu');
+    }
   });
 }
-// Funkcja zmieniona pod obsługę Enter, na dole sekcji
-// function applyAdv() {
-//   let to = document.getElementById('tOff').value;
-//   let rd = document.getElementById('rDark').value;
-//   let rb = document.getElementById('rBright').value;
-//   fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`).then(() => {
-//     alert('Zastosowano! Nie zapomnij zapisać na stałe.');
-//     console.log("Parametry kalibracji przesłane");
-//     isEditing = false; // Po zapisaniu pozwalamy na odświeżenie pól z urządzenia
-//     });
-// }
 
 function reset(){
   if(confirm('Czy na pewno przywrócić ustawienia fabryczne?')){
@@ -224,8 +243,9 @@ function updateAlarm() {
   let t = document.getElementById('alTime').value;
   let on = document.getElementById('alActive').checked ? 1 : 0;
   let mel = document.getElementById('alMel').value;
+  let chime = document.getElementById('hChime').checked ? 1 : 0;
   // Wysyłamy maskę bitową dni tygodnia
-  fetch(`/set?alTime=${t}&alOn=${on}&alDays=${currentAlarmDays}&alMel=${mel}`);
+  fetch(`/set?alTime=${t}&alOn=${on}&alDays=${currentAlarmDays}&alMel=${mel}&hChime=${chime}`);
 }
 
 function updateMute() {
@@ -237,6 +257,14 @@ function setBuzzerVol(v) {
   document.getElementById('bzVolVal').textContent = "Poziom: " + v + "%";
   // Używamy debounce lub wysyłamy przy zmianie
   fetch(`/set?bzVol=${v}`);
+}
+
+function markUnsaved() {
+  document.getElementById('saveBtn').classList.add('pulse-active');
+}
+
+function markAdvUnsaved() {
+  document.getElementById('advBtn').classList.add('adv-pulse');
 }
 
 function loadStatus(){
@@ -376,8 +404,20 @@ function loadStatus(){
         document.getElementById('bzVol').value = l.substring(6);
         document.getElementById('bzVolVal').textContent = "Poziom: " + l.substring(6) + "%";
       }
-      if(l.startsWith("night=1")) {
-        document.getElementById('bzVolVal').innerHTML += " <span style='color:#555;'>(Tryb nocny)</span>";
+      if(l.startsWith("night=")){
+        let isNight = (l.substring(6) === "1");
+        // 1. Obsługa ikonki księżyca
+        document.getElementById('nightIcon').style.display = isNight ? "inline-block" : "none";
+        // 2. Obsługa złotego napisu (tylko gdy jest noc)
+        let bzVal = document.getElementById('bzVolVal');
+        if (isNight) {
+            // Pobieramy aktualną wartość suwaka (np. "Poziom: 50%") i doklejamy złoty tekst
+            let currentVol = bzVal.textContent.split('(')[0].trim(); 
+            bzVal.innerHTML = currentVol + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (Tryb nocny)</span>";
+        }
+      }
+      if(l.startsWith("hChime=")) {
+        document.getElementById('hChime').checked = (l.substring(7) === "1");
       }
 
       // Firmware version
@@ -429,7 +469,9 @@ function applyAdv() {
     .then(() => {
       console.log("Parametry kalibracji wysłane pomyślnie");
       // KLUCZOWE: Pozwalamy skryptowi loadStatus ponownie nadpisywać pola danymi z ESP32
-      isEditing = false; 
+      isEditing = false;
+      document.getElementById('advBtn').classList.remove('adv-pulse');
+      markUnsaved();
     })
     .catch(err => {
       console.error("Błąd przesyłania kalibracji:", err);
@@ -445,7 +487,10 @@ function applyAdv() {
 <h2>Ustawienia Zegara</h2>
 
 <div class="bigClockBox">
-  <div id="bigClock" class="bigClock">--:--:--</div>
+  <div style="display:flex; justify-content:center; align-items:center; gap:10px;">
+    <div id="nightIcon" style="font-size:24px; filter:drop-shadow(0 0 8px #ffaa00); display:none;">🌙</div>
+    <div id="bigClock" class="bigClock">--:--:--</div>
+  </div>
   <div id="bigTemp" class="bigTemp">--.- °C</div>
   <div id="bigDate" class="bigDate"><span class="calendar-icon">📅</span><span id="dateText">-- --- ----</span></div>
   <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
@@ -456,13 +501,13 @@ function applyAdv() {
   <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #333; margin-top:20px; padding-top:15px;">
     <label style="margin:0; color:#ff9f9f; text-shadow:0 0 8px #ff4444;">⏰ Budzik</label>
     <div style="display:flex; align-items:center; gap:8px;">
-      <input type="checkbox" id="alActive" onchange="updateAlarm()" style="margin:0; cursor:pointer;">
+      <input type="checkbox" id="alActive" onchange="updateAlarm(); markUnsaved()" style="margin:0; cursor:pointer;">
       <label for="alActive" style="margin:0; font-size:14px; color:#ff9f9f; text-shadow:0 0 6px #ff4444; cursor:pointer;">Włączony</label>
     </div>
   </div>
   
   <!-- Wybór godziny -->
-  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm()" 
+  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
          style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:10px; font-size:18px; margin-top:10px;">
 
   <!-- Dni tygodnia -->
@@ -472,50 +517,58 @@ function applyAdv() {
       .day-btn { font-size:10px; padding:5px; border:1px solid #444; border-radius:5px; cursor:pointer; background:#111; color:#555; transition:0.3s; }
       .day-btn.active { border-color:#6ab8ff; color:#6ab8ff; box-shadow:0 0 8px #0070ff; }
     </style>
-    <div id="day-1" class="day-btn" onclick="toggleDay(1)">Pn</div>
-    <div id="day-2" class="day-btn" onclick="toggleDay(2)">Wt</div>
-    <div id="day-3" class="day-btn" onclick="toggleDay(3)">Śr</div>
-    <div id="day-4" class="day-btn" onclick="toggleDay(4)">Cz</div>
-    <div id="day-5" class="day-btn" onclick="toggleDay(5)">Pt</div>
-    <div id="day-6" class="day-btn" onclick="toggleDay(6)">So</div>
-    <div id="day-0" class="day-btn" onclick="toggleDay(0)" style="color:#ff9f9f;">Nd</div>
+    <div id="day-1" class="day-btn" onclick="toggleDay(1); markUnsaved()">Pn</div>
+    <div id="day-2" class="day-btn" onclick="toggleDay(2); markUnsaved()">Wt</div>
+    <div id="day-3" class="day-btn" onclick="toggleDay(3); markUnsaved()">Śr</div>
+    <div id="day-4" class="day-btn" onclick="toggleDay(4); markUnsaved()">Cz</div>
+    <div id="day-5" class="day-btn" onclick="toggleDay(5); markUnsaved()">Pt</div>
+    <div id="day-6" class="day-btn" onclick="toggleDay(6); markUnsaved()">So</div>
+    <div id="day-0" class="day-btn" onclick="toggleDay(0); markUnsaved()" style="color:#ff9f9f;">Nd</div>
   </div>
 
-  <select id="alMel" onchange="updateAlarm()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+  <select id="alMel" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
     <option value="0">Melodia: Klasyczna</option>
     <option value="1">Melodia: Radosna</option>
     <option value="2">Melodia: Syrena</option>
   </select>
 
   <label style="margin-top:15px; font-size:13px; color:#aaa;">Głośność buzzera</label>
-  <input type="range" id="bzVol" min="0" max="100" oninput="setBuzzerVol(this.value)" style="margin-top:5px;">
+  <input type="range" id="bzVol" min="0" max="100" oninput="setBuzzerVol(this.value); markUnsaved()" style="margin-top:5px;">
   <div id="bzVolVal" style="font-size:11px; color:#666;">Poziom: --%</div>
 
   <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff; margin-top:15px;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
   
-  <div style="margin-top:15px; border-top:1px solid #222; padding-top:10px;">
-    <input type="checkbox" id="mMute" onchange="updateMute()">
-    <label for="mMute" style="display:inline; color:#ff4444;">🔇 Master Mute (Wycisz wszystko)</label>
+  <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
+    <!-- Master Mute -->
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="mMute" onchange="updateMute(); markUnsaved()" style="margin:0; cursor:pointer;">
+      <label for="mMute" style="margin:0; color:#ff4444; font-size:14px; text-shadow:0 0 8px #ff4444; cursor:pointer;">🔇 Master Mute</label>
+    </div>
+    <!-- Chime -->
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="hChime" onchange="updateAlarm(); markUnsaved()" style="margin:0; cursor:pointer;">
+      <label for="hChime" style="margin:0; color:#9fc9ff; font-size:14px; text-shadow:0 0 8px #0070ff; cursor:pointer;">🔔 Chime</label>
+    </div>
   </div>
 </div>
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:25px;">
   <label style="margin:0;">🔆 Jasność</label>
   <div style="display:flex; align-items:center; gap:8px;">
-    <input type="checkbox" id="auto" onchange="setAuto()" style="margin:0; cursor:pointer;">
+    <input type="checkbox" id="auto" onchange="setAuto(); markUnsaved()" style="margin:0; cursor:pointer;">
     <label for="auto" style="margin:0; font-size:14px; color:#9fc9ff; text-shadow:0 0 6px #0044aa; cursor:pointer;">Auto</label>
   </div>
 </div>
 <input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
 <div class="value" id="brightVal">Aktualnie: --</div>
 
-<button class="btn save" onclick="save()">💾 Zapisz</button>
+<button id="saveBtn" class="btn save" onclick="save()">💾 Zapisz</button>
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
     
     <label style="font-size:13px;">Korekta Temp (°C)</label>
-    <input type="number" id="tOff" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
+    <input type="number" id="tOff" oninput="markAdvUnsaved()" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
            style="width:90%; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
     
     <div style="margin: 10px 0; padding: 8px; background: #1a1d26; border-radius: 6px; text-align: center; border: 1px solid #0070ff22;">
@@ -524,19 +577,19 @@ function applyAdv() {
     </div>
     <label style="font-size:13px; display:block; margin-top:10px;">LDR Dark (Raw ADC)</label>
     <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy całkowitej ciemności</div>
-    <input type="number" id="rDark" onfocus="setEdit(true)" onblur="setEdit(false)"
+    <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
            style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
     
     <label style="font-size:13px; display:block; margin-top:10px;">LDR Bright (Raw ADC)</label>
     <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy pełnym świetle</div>
-    <input type="number" id="rBright" onfocus="setEdit(true)" onblur="setEdit(false)"
+    <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
            style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
     
-    <button class="btn save" style="margin-top:15px; padding:10px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj korekty</button>
+    <button id="advBtn" class="btn save" style="margin-top:15px; padding:10px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj korekty</button>
     <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
   </div>
 </details>
-<button class="btn reset" onclick="reset()">↺ Reset ustawień</button>
+<button class="btn reset" onclick="reset(); location.reload()">↺ Reset ustawień</button>
 <button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
 
 <div style="font-size:10px; color:#333; text-align:center; margin-top:15px; letter-spacing:1px;">
@@ -549,7 +602,7 @@ function applyAdv() {
   <div id="statusBox" style="margin-top:10px;">Ładowanie...</div>
 </details>
 
-<button class="btn reset" onclick="reboot()">🔄 Restartuj System</button>
+<button class="btn reset" onclick="reboot()">🔄 Restart Systemu</button>
 
 </div>
 </body>

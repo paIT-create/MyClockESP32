@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202604.1.5.3-Versatile AudioGlow"
+#define FW_VERSION "[CC/CA]202605.1.6.0-Versatile AudioGlow"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika
@@ -160,13 +160,15 @@ OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature sensors(&oneWire);
 
 // ALARM
-int g_buzzerVol = 50;  // Domyślnie 50%
-int g_alarmH = 7, g_alarmM = 0;
-bool g_alarmActive = false;
-bool g_masterMute = false;           // Całkowite wyciszenie
-int g_alarmMelody = 0;               // Wybór melodii (0 - klasyk, 1 - radosna, 2 - syrena
-uint8_t g_alarmDays = 127;           // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 = wszystkie dni.
-volatile bool g_isAlarming = false;  // Flaga, czy budzik aktualnie gra
+int g_buzzerVol = 50;                     // Domyślnie 50%
+int g_alarmH = 7, g_alarmM = 0;           // Domyślnie 7:00
+bool g_hourlyChime = true;                // Domyślnie włączony
+bool g_alarmActive = false;               // Domyślnie wyłączony
+bool g_masterMute = false;                // Całkowite wyciszenie
+int g_alarmMelody = 0;                    // Wybór melodii (0 - klasyk, 1 - radosna, 2 - syrena
+uint8_t g_alarmDays = 127;                // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 = wszystkie dni.
+volatile bool g_isAlarming = false;       // Flaga, czy budzik aktualnie gra
+int g_hNightStart = 22, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
 
 // -----------------------------------------------------------------------------
 // 74HC595 helpers
@@ -334,7 +336,7 @@ void beep(int freq = 2000, int duration = 100, bool isAlarm = false) {
 
   // AUTO NIGHT MUTE: Jeśli nie jest to alarm, a jest między 22:00 a 06:00 - milcz
   if (!isAlarm) {
-    if (g_hour >= 22 || g_hour < 6) return;
+    if (g_hour >= g_hNightStart || g_hour < g_hNightEnd) return;
   }
 
   // Przeliczamy 0-100% na 0-128 (dla buzzera 50% wypełnienia to max efektywności)
@@ -360,7 +362,8 @@ static const int PWM_RES = 8;       // 0..255
 void applyBrightness(uint8_t logical) {
   // Jeśli w wersji CA jasność będzie działać "odwrotnie",
   // zamień miejscami 'logical' i '(255 - logical)'
-  uint8_t oeDuty = DISPLAY_COMMON_CATHODE ? (255 - logical) : logical;
+  // uint8_t oeDuty = DISPLAY_COMMON_CATHODE ? (255 - logical) : logical;
+  uint8_t oeDuty = 255 - logical;
   ledcWrite(PWM_CH, oeDuty);
 }
 
@@ -440,6 +443,12 @@ void TimeTask(void *pv) {
         g_minute = ti.tm_min;
         g_second = ti.tm_sec;
         g_timeValid = true;
+        // Beep o pełnej godzinie (Casio style)
+        if (g_minute == 0 && g_second == 0 && g_hourlyChime) {
+          beep(4000, 50);
+          vTaskDelay(pdMS_TO_TICKS(50));
+          beep(4000, 50);
+        }
       }
     }
     // 100ms to złoty środek dla zegara
@@ -647,7 +656,14 @@ void saveSettings() {
   prefs.putInt("alMel", g_alarmMelody);
   prefs.putUChar("alDays", g_alarmDays);
   prefs.putInt("bzVol", g_buzzerVol);
+  prefs.putBool("hChime", g_hourlyChime);
+  prefs.putInt("hNStart", g_hNightStart);
+  prefs.putInt("hNEnd", g_hNightEnd);
   prefs.end();
+
+  beep(1200, 50);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  beep(1800, 50);
 }
 
 void resetSettings() {
@@ -663,6 +679,9 @@ void resetSettings() {
   const int DEFAULT_AL_MELODY = 0;
   const uint8_t DEFAULT_AL_DAYS = 127;
   const int DEFAULT_BUZ_VOL = 50;
+  const bool DEFAULT_H_CHIME = true;
+  const int DEFAULT_NIGHT_START = 22;
+  const int DEFAULT_NIGHT_END = 6;
 
   prefs.begin("clock", false);
   prefs.putUChar("bright", DEFAULT_BRIGHT);
@@ -677,6 +696,9 @@ void resetSettings() {
   prefs.putInt("alMel", DEFAULT_AL_MELODY);
   prefs.putUChar("alDays", DEFAULT_AL_DAYS);
   prefs.putInt("bzVol", DEFAULT_BUZ_VOL);
+  prefs.putBool("hChime", DEFAULT_H_CHIME);
+  prefs.putInt("hNStart", DEFAULT_NIGHT_START);
+  prefs.putInt("hNEnd", DEFAULT_NIGHT_END);
   prefs.end();
 
   g_brightness = DEFAULT_BRIGHT;
@@ -691,11 +713,18 @@ void resetSettings() {
   g_alarmMelody = DEFAULT_AL_MELODY;
   g_alarmDays = DEFAULT_AL_DAYS;
   g_buzzerVol = DEFAULT_BUZ_VOL;
+  g_hourlyChime = DEFAULT_H_CHIME;
+  g_hNightStart = DEFAULT_NIGHT_START;
+  g_hNightEnd = DEFAULT_NIGHT_END;
+
+  beep(1200, 50);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  beep(1800, 50);
 }
 
 void loadSettings() {
   prefs.begin("clock", false);
-  g_brightness = prefs.getUChar("bright", 150);
+  g_brightness = prefs.getUChar("bright", 128);
   g_autoBrightness = prefs.getBool("autoB", true);
   g_tempOffset = prefs.getFloat("tOffset", 0.0f);
   g_rawDark = prefs.getInt("rDark", 3900);
@@ -707,6 +736,9 @@ void loadSettings() {
   g_alarmMelody = prefs.getInt("alMel", 0);
   g_alarmDays = prefs.getUChar("alDays", 127);
   g_buzzerVol = prefs.getInt("bzVol", 50);
+  g_hourlyChime = prefs.getBool("hChime", true);
+  g_hNightStart = prefs.getInt("hNStart", 22);
+  g_hNightEnd = prefs.getInt("hNEnd", 6);
   prefs.end();
 }
 
@@ -802,7 +834,7 @@ void WiFiTask(void *pv) {
 
   // OTA callbacks
   ota.onStart([]() {
-    beep(1800, 60);
+    beep(1200, 60);
     g_otaActive = true;
   });
   ota.onEnd([]() {
@@ -859,8 +891,9 @@ void WiFiTask(void *pv) {
                     g_alarmDays, g_alarmMelody, (g_masterMute ? 1 : 0));
     out += snprintf(s + out, sizeof(s) - out, "hasBuzzer=%d\n", HAS_BUZZER ? 1 : 0);
     out += snprintf(s + out, sizeof(s) - out, "bzVol=%d\n", g_buzzerVol);
-    bool isNight = (g_hour >= 22 || g_hour < 6);
+    bool isNight = (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
     out += snprintf(s + out, sizeof(s) - out, "night=%d\n", isNight ? 1 : 0);
+    out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
 
     // Blok 5: Sieć
     out += snprintf(s + out, sizeof(s) - out, "wifi=%s\n", (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
@@ -927,6 +960,7 @@ void WiFiTask(void *pv) {
     if (server.hasArg("alDays")) g_alarmDays = server.arg("alDays").toInt();
     if (server.hasArg("alMel")) g_alarmMelody = server.arg("alMel").toInt();
     if (server.hasArg("mMute")) g_masterMute = (server.arg("mMute") == "1");
+    if (server.hasArg("hChime")) g_hourlyChime = (server.arg("hChime") == "1");
 
     if (server.hasArg("bzVol")) {
       g_buzzerVol = server.arg("bzVol").toInt();
