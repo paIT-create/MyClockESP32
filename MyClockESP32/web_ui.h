@@ -224,12 +224,6 @@ function updateTemp(){
   document.getElementById('bigTemp').textContent = temp + " °C";
 }
 
-function updateAlarm() {
-  let t = document.getElementById('alTime').value;
-  let on = document.getElementById('alActive').checked ? 1 : 0;
-  fetch(`/set?alTime=${t}&alOn=${on}`);
-}
-
 function stopAlarm() {
   fetch('/set?stopAlarm=1');
 }
@@ -404,6 +398,15 @@ function loadStatus(){
         document.getElementById('bzVol').value = l.substring(6);
         document.getElementById('bzVolVal').textContent = "Poziom: " + l.substring(6) + "%";
       }
+      if(l.startsWith("alMel=")) {
+        let melValue = l.substring(6);
+        let melSelect = document.getElementById('alMel');
+        
+        // Zmieniamy wybraną pozycję tylko wtedy, gdy użytkownik aktualnie jej nie rozwija
+        if (!isEditing && melSelect.value !== melValue) {
+          melSelect.value = melValue;
+        }
+      }
       if(l.startsWith("night=")){
         let isNight = (l.substring(6) === "1");
         // 1. Obsługa ikonki księżyca
@@ -526,7 +529,7 @@ function applyAdv() {
     <div id="day-0" class="day-btn" onclick="toggleDay(0); markUnsaved()" style="color:#ff9f9f;">Nd</div>
   </div>
 
-  <select id="alMel" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+  <select id="alMel" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
     <option value="0">Melodia: Klasyczna</option>
     <option value="1">Melodia: Radosna</option>
     <option value="2">Melodia: Syrena</option>

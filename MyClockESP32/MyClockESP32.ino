@@ -1,6 +1,6 @@
 /*
   ESP32 Clock + Thermometer (DS18B20) + 4x7seg (CC/CA) via 74HC595 + (ULN2803/PNP)
-  Ultra‑Stable Edition (2026‑04)
+  Ultra‑Stable Edition (2026‑05)
 
   - Display refresh in hardware timer ISR (no blanking)
   - DS18B20 handled asynchronously
@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.6.0-Versatile AudioGlow"
+#define FW_VERSION "[CC/CA]202605.1.6.1-Versatile AudioGlow"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika
@@ -360,9 +360,6 @@ static const int PWM_RES = 8;       // 0..255
 //   ledcWrite(PWM_CH, oeDuty);
 // }
 void applyBrightness(uint8_t logical) {
-  // Jeśli w wersji CA jasność będzie działać "odwrotnie",
-  // zamień miejscami 'logical' i '(255 - logical)'
-  // uint8_t oeDuty = DISPLAY_COMMON_CATHODE ? (255 - logical) : logical;
   uint8_t oeDuty = 255 - logical;
   ledcWrite(PWM_CH, oeDuty);
 }
@@ -830,6 +827,13 @@ void WiFiTask(void *pv) {
   portalConfig.immediateStart = false;
   portalConfig.homeUri = "/config";  // Wymusza stronę główną portalu
   portalConfig.bootUri = AC_ONBOOTURI_HOME;
+  // The AutoConnect ticker indicates the WiFi connection status in the following three flicker patterns:
+  // Short blink: The ESP module stays in AP_STA mode.
+  // Short-on and long-off: No STA connection state. (i.e. WiFi.status != WL_CONNECTED)
+  // No blink: WiFi connection with access point established and data link enabled. (i.e. WiFi.status = WL_CONNECTED)
+  portalConfig.ticker = true;
+  portalConfig.tickerPort = PIN_LED;
+  portalConfig.tickerOn = HIGH;
   portal.config(portalConfig);
 
   // OTA callbacks
