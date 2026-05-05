@@ -144,6 +144,8 @@ let localTime = new Date();
 let lastSyncTime = 0;
 let isEditing = false; // Flaga blokująca auto-odświeżanie pól podczas wpisywania
 let currentAlarmDays = 127; // Domyślnie wszystkie dni
+let nStart = "22";
+let nEnd = "6";
 
 // Funkcja Debounce: wysyła żądanie dopiero 150ms po zakończeniu ruchu suwakiem
 function setBright(v) {
@@ -269,6 +271,41 @@ function loadStatus(){
     box.innerHTML='';
 
     lines.forEach(l=>{
+      // Pomocniczy podział linii na klucz i wartość
+      let parts = l.split('=');
+      if (parts.length < 2) return;
+      let key = parts[0].trim();
+      let val = parts[1].trim();
+
+      // --- OBSŁUGA TRYBU NOCNEGO ---
+      if(key === "nStart") nStart = val;
+      if(key === "nEnd")   nEnd = val;
+
+      if(key === "night"){
+        let isNight = (val === "1");
+        // Ikonka księżyca przy zegarze
+        document.getElementById('nightIcon').style.display = isNight ? "inline-block" : "none";
+        
+        let bzVal = document.getElementById('bzVolVal');
+        if (bzVal) {
+          // Zawsze czyścimy tekst z poprzednich nawiasów (zapobiega puchnięciu napisu)
+          let baseText = bzVal.textContent.split('(')[0].trim();
+          if (isNight) {
+            bzVal.innerHTML = baseText + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (Tryb nocny " + nStart + "-" + nEnd + ")</span>";
+          } else {
+            bzVal.textContent = baseText; // W dzień przywracamy czysty tekst
+          }
+        }
+      }
+      if(key === "nStart") {
+        nStart = val;
+        if(!isEditing) document.getElementById('inpNStart').value = val;
+      }
+      if(key === "nEnd") {
+        nEnd = val;
+        if(!isEditing) document.getElementById('inpNEnd').value = val;
+      }
+
       if(l.startsWith("id=")){
         let deviceID = l.substring(3).trim();
         let hdr = document.getElementById('hdrID');
@@ -398,27 +435,12 @@ function loadStatus(){
         document.getElementById('bzVol').value = l.substring(6);
         document.getElementById('bzVolVal').textContent = "Poziom: " + l.substring(6) + "%";
       }
-      if(l.startsWith("alMel=")) {
-        let melValue = l.substring(6);
-        let melSelect = document.getElementById('alMel');
-        
-        // Zmieniamy wybraną pozycję tylko wtedy, gdy użytkownik aktualnie jej nie rozwija
-        if (!isEditing && melSelect.value !== melValue) {
-          melSelect.value = melValue;
-        }
+      // --- OBSŁUGA MELODII ("nowym sposobem" z key/val) ---
+      if(key === "alMel") {
+        let sel = document.getElementById('alMel');
+        if (sel && document.activeElement !== sel) sel.value = val;
       }
-      if(l.startsWith("night=")){
-        let isNight = (l.substring(6) === "1");
-        // 1. Obsługa ikonki księżyca
-        document.getElementById('nightIcon').style.display = isNight ? "inline-block" : "none";
-        // 2. Obsługa złotego napisu (tylko gdy jest noc)
-        let bzVal = document.getElementById('bzVolVal');
-        if (isNight) {
-            // Pobieramy aktualną wartość suwaka (np. "Poziom: 50%") i doklejamy złoty tekst
-            let currentVol = bzVal.textContent.split('(')[0].trim(); 
-            bzVal.innerHTML = currentVol + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (Tryb nocny)</span>";
-        }
-      }
+
       if(l.startsWith("hChime=")) {
         document.getElementById('hChime').checked = (l.substring(7) === "1");
       }
@@ -450,7 +472,7 @@ document.addEventListener('keydown', function (e) {
       el.blur(); // "Zdejmuje" kursor z pola (to uruchamia onblur i setEdit(false))
       
       // Jeśli to pole kalibracji, od razu wysyłamy dane do zegara
-      if (["tOff", "rDark", "rBright"].includes(el.id)) {
+      if (["tOff", "rDark", "rBright", "inpNStart", "inpNEnd"].includes(el.id)) {
         applyAdv();
       }
       
@@ -467,17 +489,19 @@ function applyAdv() {
   let to = document.getElementById('tOff').value;
   let rd = document.getElementById('rDark').value;
   let rb = document.getElementById('rBright').value;
+  let ns = document.getElementById('inpNStart').value;
+  let ne = document.getElementById('inpNEnd').value;
   
-  fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`)
+  fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}&nStart=${ns}&nEnd=${ne}`)
     .then(() => {
-      console.log("Parametry kalibracji wysłane pomyślnie");
+      console.log("Parametry kalibracji i trybu nocnego wysłane");
       // KLUCZOWE: Pozwalamy skryptowi loadStatus ponownie nadpisywać pola danymi z ESP32
       isEditing = false;
       document.getElementById('advBtn').classList.remove('adv-pulse');
       markUnsaved();
     })
     .catch(err => {
-      console.error("Błąd przesyłania kalibracji:", err);
+      console.error("Błąd przesyłania kalibracji i trybu nocnego:", err);
       isEditing = false;
     });
 }
@@ -566,7 +590,7 @@ function applyAdv() {
 <div class="value" id="brightVal">Aktualnie: --</div>
 
 <button id="saveBtn" class="btn save" onclick="save()">💾 Zapisz</button>
-<details style="margin-top:10px; text-align:left; color:#6ab8ff;">
+<!--<details style="margin-top:10px; text-align:left; color:#6ab8ff;">
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
     
@@ -588,10 +612,64 @@ function applyAdv() {
     <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
            style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
     
+    <div style="display:flex; justify-content:space-between; gap:10px; margin-top:10px;">
+      <div style="flex:1;">
+        <label style="font-size:12px;">Cisza od (h)</label>
+        <input type="number" id="inpNStart" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:5px; border-radius:5px;">
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:12px;">Cisza do (h)</label>
+        <input type="number" id="inpNEnd" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:5px; border-radius:5px;">
+      </div>
+    </div>
+    
     <button id="advBtn" class="btn save" style="margin-top:15px; padding:10px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj korekty</button>
     <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
   </div>
+</details>-->
+<details style="margin-top:10px; text-align:left; color:#6ab8ff;">
+  <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
+  <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
+    <!-- Korekta Temp -->
+    <label style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
+    <input type="number" id="tOff" oninput="markAdvUnsaved()" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
+           style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:15px; border-radius:6px; display:block;">
+    <!-- LDR Live View -->
+    <div style="margin-bottom:15px; padding:10px; background: #1a1d26; border-radius: 8px; text-align: center; border: 1px solid #0070ff22;">
+      <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
+      <div id="liveLDR" style="font-size: 20px; color: #00ffaa; font-weight: bold; text-shadow: 0 0 10px #00ffaa66;">----</div>
+    </div>
+    <!-- LDR Dark i Bright - Naprawa nachodzenia -->
+    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:15px;">
+      <div style="flex:1;">
+        <label style="font-size:11px; color:#666; display:block;">LDR Dark (Ciemno)</label>
+        <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:11px; color:#666; display:block;">LDR Bright (Jasno)</label>
+        <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
+      </div>
+    </div>
+    <!-- Godziny Nocne - Naprawa nachodzenia -->
+    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:20px;">
+      <div style="flex:1;">
+        <label style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza od (h)</label>
+        <input type="number" id="inpNStart" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza do (h)</label>
+        <input type="number" id="inpNEnd" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
+      </div>
+    </div>
+    <button id="advBtn" class="btn save" style="width:100%; padding:12px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj zmiany</button>
+    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
+  </div>
 </details>
+
 <button class="btn reset" onclick="reset(); location.reload()">↺ Reset ustawień</button>
 <button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
 

@@ -43,10 +43,10 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.6.1-Versatile AudioGlow"
+#define FW_VERSION "[CC]202605.1.6.3-Versatile AudioGlow"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
-#define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika
+#define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
 
 // Logika dla segmentów (74HC595), w CA segment świeci przy stanie niskim (odwrócenie fontu)
 #define SEG_MASK(s) (DISPLAY_COMMON_CATHODE ? (s) : ~(s))
@@ -168,7 +168,7 @@ bool g_masterMute = false;                // Całkowite wyciszenie
 int g_alarmMelody = 0;                    // Wybór melodii (0 - klasyk, 1 - radosna, 2 - syrena
 uint8_t g_alarmDays = 127;                // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 = wszystkie dni.
 volatile bool g_isAlarming = false;       // Flaga, czy budzik aktualnie gra
-int g_hNightStart = 22, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
+int g_hNightStart = 23, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
 
 // -----------------------------------------------------------------------------
 // 74HC595 helpers
@@ -334,9 +334,16 @@ void beep(int freq = 2000, int duration = 100, bool isAlarm = false) {
 #if HAS_BUZZER
   if (g_masterMute) return;  // Jeśli wyciszono, funkcja nic nie robi
 
-  // AUTO NIGHT MUTE: Jeśli nie jest to alarm, a jest między 22:00 a 06:00 - milcz
+  // AUTO NIGHT MUTE: Jeśli nie jest to alarm, a jest "noc" - milcz
   if (!isAlarm) {
-    if (g_hour >= g_hNightStart || g_hour < g_hNightEnd) return;
+    // Logika dla okresu nocnego (np. 23:00 - 10:00)
+    if (g_hNightStart > g_hNightEnd) {
+      // Przypadek gdy noc przechodzi przez północ (23 -> 10)
+      if (g_hour >= g_hNightStart || g_hour < g_hNightEnd) return;
+    } else {
+      // Przypadek gdy noc jest w jednym dniu (np. 1 -> 5)
+      if (g_hour >= g_hNightStart && g_hour < g_hNightEnd) return;
+    }
   }
 
   // Przeliczamy 0-100% na 0-128 (dla buzzera 50% wypełnienia to max efektywności)
@@ -897,6 +904,7 @@ void WiFiTask(void *pv) {
     out += snprintf(s + out, sizeof(s) - out, "bzVol=%d\n", g_buzzerVol);
     bool isNight = (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
     out += snprintf(s + out, sizeof(s) - out, "night=%d\n", isNight ? 1 : 0);
+    out += snprintf(s + out, sizeof(s) - out, "nStart=%d\nnEnd=%d\n", g_hNightStart, g_hNightEnd);
     out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
 
     // Blok 5: Sieć
@@ -950,6 +958,8 @@ void WiFiTask(void *pv) {
     if (server.hasArg("tOff")) g_tempOffset = server.arg("tOff").toFloat();
     if (server.hasArg("rDark")) g_rawDark = server.arg("rDark").toInt();
     if (server.hasArg("rBright")) g_rawBright = server.arg("rBright").toInt();
+    if (server.hasArg("nStart")) g_hNightStart = server.arg("nStart").toInt();
+    if (server.hasArg("nEnd")) g_hNightEnd = server.arg("nEnd").toInt();
 
     applyBrightness(g_brightness);  // Reaguje od razu, ale nie zapisuje do Flash!
 
