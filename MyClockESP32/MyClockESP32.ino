@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC]202605.1.6.3-Versatile AudioGlow"
+#define FW_VERSION "[CC/CA]202605.1.6.4-Versatile AudioGlow"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -958,8 +958,15 @@ void WiFiTask(void *pv) {
     if (server.hasArg("tOff")) g_tempOffset = server.arg("tOff").toFloat();
     if (server.hasArg("rDark")) g_rawDark = server.arg("rDark").toInt();
     if (server.hasArg("rBright")) g_rawBright = server.arg("rBright").toInt();
-    if (server.hasArg("nStart")) g_hNightStart = server.arg("nStart").toInt();
-    if (server.hasArg("nEnd")) g_hNightEnd = server.arg("nEnd").toInt();
+
+    if (server.hasArg("nStart")) {
+      int val = server.arg("nStart").toInt();
+      g_hNightStart = constrain(val, 0, 23);  // Wymusza zakres 0-23
+    }
+    if (server.hasArg("nEnd")) {
+      int val = server.arg("nEnd").toInt();
+      g_hNightEnd = constrain(val, 0, 23);
+    }
 
     applyBrightness(g_brightness);  // Reaguje od razu, ale nie zapisuje do Flash!
 

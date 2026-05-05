@@ -133,6 +133,10 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
   animation: advPulse 2s infinite ease-in-out;
   border: 1px solid #ffdd88 !important;
 }
+#alTime:focus {
+  border-color: #0088ff;
+  box-shadow: 0 0 20px #0088ff, inset 0 0 10px #0088ff44;
+}
 </style>
 
 <script>
@@ -489,8 +493,15 @@ function applyAdv() {
   let to = document.getElementById('tOff').value;
   let rd = document.getElementById('rDark').value;
   let rb = document.getElementById('rBright').value;
-  let ns = document.getElementById('inpNStart').value;
-  let ne = document.getElementById('inpNEnd').value;
+  // Pobieramy i walidujemy godziny nocne
+  let ns = parseInt(document.getElementById('inpNStart').value);
+  let ne = parseInt(document.getElementById('inpNEnd').value);
+  // Prosta korekta zakresu
+  if (ns < 0) ns = 0; if (ns > 23) ns = 23;
+  if (ne < 0) ne = 0; if (ne > 23) ne = 23;
+  // Aktualizujemy pola w widoku, żeby użytkownik widział poprawkę
+  document.getElementById('inpNStart').value = ns;
+  document.getElementById('inpNEnd').value = ne;
   
   fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}&nStart=${ns}&nEnd=${ne}`)
     .then(() => {
@@ -534,8 +545,10 @@ function applyAdv() {
   </div>
   
   <!-- Wybór godziny -->
-  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
-         style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:10px; font-size:18px; margin-top:10px;">
+  <div style="text-align:center; margin-top:15px;">
+    <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
+         style="width:120px; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none; transition:0.3s;">
+  </div>
 
   <!-- Dni tygodnia -->
   <div style="display:flex; justify-content:space-between; margin:15px 0;">
@@ -590,57 +603,20 @@ function applyAdv() {
 <div class="value" id="brightVal">Aktualnie: --</div>
 
 <button id="saveBtn" class="btn save" onclick="save()">💾 Zapisz</button>
-<!--<details style="margin-top:10px; text-align:left; color:#6ab8ff;">
-  <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
-  <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
-    
-    <label style="font-size:13px;">Korekta Temp (°C)</label>
-    <input type="number" id="tOff" oninput="markAdvUnsaved()" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
-           style="width:90%; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
-    
-    <div style="margin: 10px 0; padding: 8px; background: #1a1d26; border-radius: 6px; text-align: center; border: 1px solid #0070ff22;">
-      <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
-      <div id="liveLDR" style="font-size: 20px; color: #00ffaa; font-weight: bold; text-shadow: 0 0 10px #00ffaa66;">----</div>
-    </div>
-    <label style="font-size:13px; display:block; margin-top:10px;">LDR Dark (Raw ADC)</label>
-    <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy całkowitej ciemności</div>
-    <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
-           style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
-    
-    <label style="font-size:13px; display:block; margin-top:10px;">LDR Bright (Raw ADC)</label>
-    <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy pełnym świetle</div>
-    <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
-           style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
-    
-    <div style="display:flex; justify-content:space-between; gap:10px; margin-top:10px;">
-      <div style="flex:1;">
-        <label style="font-size:12px;">Cisza od (h)</label>
-        <input type="number" id="inpNStart" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:5px; border-radius:5px;">
-      </div>
-      <div style="flex:1;">
-        <label style="font-size:12px;">Cisza do (h)</label>
-        <input type="number" id="inpNEnd" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:5px; border-radius:5px;">
-      </div>
-    </div>
-    
-    <button id="advBtn" class="btn save" style="margin-top:15px; padding:10px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj korekty</button>
-    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
-  </div>
-</details>-->
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
-  <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
+  <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowane</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
     <!-- Korekta Temp -->
     <label style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
     <input type="number" id="tOff" oninput="markAdvUnsaved()" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
-           style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:15px; border-radius:6px; display:block;">
+           style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:6px; display:block;">
     <!-- LDR Live View -->
     <div style="margin-bottom:15px; padding:10px; background: #1a1d26; border-radius: 8px; text-align: center; border: 1px solid #0070ff22;">
       <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
       <div id="liveLDR" style="font-size: 20px; color: #00ffaa; font-weight: bold; text-shadow: 0 0 10px #00ffaa66;">----</div>
     </div>
-    <!-- LDR Dark i Bright - Naprawa nachodzenia -->
-    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:15px;">
+    <!-- LDR Dark i Bright -->
+    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
         <label style="font-size:11px; color:#666; display:block;">LDR Dark (Ciemno)</label>
         <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
@@ -652,26 +628,26 @@ function applyAdv() {
                style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
     </div>
-    <!-- Godziny Nocne - Naprawa nachodzenia -->
-    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:20px;">
+    <!-- Godziny Nocne -->
+    <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza od (h)</label>
+        <label style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza Od (h)</label>
         <input type="number" id="inpNStart" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
                style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
       <div style="flex:1;">
-        <label style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza do (h)</label>
+        <label style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza Do (h)</label>
         <input type="number" id="inpNEnd" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
                style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
     </div>
-    <button id="advBtn" class="btn save" style="width:100%; padding:12px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj zmiany</button>
-    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
+    <button id="advBtn" class="btn save" style="width:100%; padding:10px; font-size:14px; margin-top:10px;" onclick="applyAdv()">⚡ Zastosuj zmiany</button>
+    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center; opacity:0.7;">Zmiany będą aktywne TYLKO do restartu, chyba że klikniesz główny przycisk ZAPISZ.</div>
   </div>
 </details>
 
-<button class="btn reset" onclick="reset(); location.reload()">↺ Reset ustawień</button>
-<button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
+<button class="btn reset" style="width:100%; margin-top:15px; font-size:14px;" onclick="reset()">↺ Przywróć fabryczne</button>
+<button class="btn reset" style="width:100%; margin-top:10px; font-size:14px; background:#222; border:1px solid #0070ff44;" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
 
 <div style="font-size:10px; color:#333; text-align:center; margin-top:15px; letter-spacing:1px;">
   MyClock ESP32 | <span id="fwVer">v1.x</span>
@@ -683,7 +659,7 @@ function applyAdv() {
   <div id="statusBox" style="margin-top:10px;">Ładowanie...</div>
 </details>
 
-<button class="btn reset" onclick="reboot()">🔄 Restart Systemu</button>
+<button class="btn reset" style="width:100%; margin-top:10px; font-size:14px; color:#ff4444; border:1px solid #ff444444;" onclick="reboot()">🔄 Restart Systemu</button>
 
 </div>
 </body>
