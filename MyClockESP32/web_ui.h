@@ -642,7 +642,7 @@ function applyAdv() {
       </div>
     </div>
     <button id="advBtn" class="btn save" style="width:100%; padding:10px; font-size:14px; margin-top:10px;" onclick="applyAdv()">⚡ Zastosuj zmiany</button>
-    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center; opacity:0.7;">Zmiany będą aktywne TYLKO do restartu, chyba że klikniesz główny przycisk ZAPISZ.</div>
+    <div style="font-size:10px; color:#444; margin-top:12px; text-align:center; opacity:0.7;">Zmiany będą aktywne TYLKO do restartu, chyba że klikniesz główny przycisk ZAPISZ.</div>
   </div>
 </details>
 
