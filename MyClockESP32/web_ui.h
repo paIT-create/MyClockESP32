@@ -6,7 +6,6 @@ const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clock Config</title>
-
 <style>
 body{
   margin:0;padding:20px;background:#05060a;
@@ -156,7 +155,6 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
 }
 input:checked + .slider { background-color: #0050ff33; border-color: #0070ff; box-shadow: 0 0 10px #0070ff66; }
 input:checked + .slider:before { transform: translateX(24px); background-color: #6ab8ff; box-shadow: 0 0 8px #fff; }
-
 /* Dodatkowy styl dla animacji ikony budzika */
 @keyframes alarm-pulse {
   0% { transform: scale(1); filter: drop-shadow(0 0 5px #ff444466); }
@@ -165,7 +163,6 @@ input:checked + .slider:before { transform: translateX(24px); background-color: 
 }
 .alarm-active-icon { animation: alarm-pulse 2s infinite ease-in-out; }
 </style>
-
 <script>
 let hh="--", mm="--", ss="--";
 let temp="--.-";
@@ -177,14 +174,12 @@ let isEditing = false; // Flaga blokująca auto-odświeżanie pól podczas wpisy
 let currentAlarmDays = 127; // Domyślnie wszystkie dni
 let nStart = "22";
 let nEnd = "6";
-
 // Funkcja Debounce: wysyła żądanie dopiero 150ms po zakończeniu ruchu suwakiem
 function setBright(v) {
   if (document.getElementById('auto').checked) return;
   
   // Aktualizujemy etykietę natychmiast dla płynności interfejsu
   document.getElementById('brightVal').textContent = "Aktualnie: " + v;
-
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     fetch('/set?bright=' + v)
@@ -192,7 +187,6 @@ function setBright(v) {
       .catch(err => console.error("Update failed", err));
   }, 150); 
 }
-
 function setAuto() {
   let a = document.getElementById('auto').checked ? 1 : 0;
   // Przy checkboxie wysyłamy od razu, bo to pojedyncze kliknięcie
@@ -216,7 +210,6 @@ function save(){
     }
   });
 }
-
 function reset(){
   if(confirm('Czy na pewno przywrócić ustawienia fabryczne?')){
     fetch('/reset').then(()=>{
@@ -225,7 +218,6 @@ function reset(){
     });
   }
 }
-
 function reboot() {
   if (confirm('Czy na pewno zrestartować urządzenie?')) {
     fetch('/reboot').then(() => {
@@ -234,7 +226,6 @@ function reboot() {
     });
   }
 }
-
 function updateClock() {
   // Jeśli od ostatniej synchronizacji minęło więcej niż 1s, dodaj sekundę lokalnie
   let now = new Date();
@@ -242,30 +233,24 @@ function updateClock() {
     localTime.setSeconds(localTime.getSeconds() + 1);
     lastSyncTime = now;
   }
-
   let hh = String(localTime.getHours()).padStart(2, '0');
   let mm = String(localTime.getMinutes()).padStart(2, '0');
   let ss = String(localTime.getSeconds()).padStart(2, '0');
   
   document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
 }
-
 // Uruchom płynne odliczanie co 100ms dla idealnej płynności
 setInterval(updateClock, 100);
-
 function updateTemp(){
   document.getElementById('bigTemp').textContent = temp + " °C";
 }
-
 function stopAlarm() {
   fetch('/set?stopAlarm=1');
 }
-
 function toggleDay(day) {
   currentAlarmDays ^= (1 << day); // Przełącz bit (XOR)
   updateAlarm(); // Wyślij aktualizację do ESP
 }
-
 function updateAlarm() {
   let t = document.getElementById('alTime').value;
   let on = document.getElementById('alActive').checked ? 1 : 0;
@@ -274,235 +259,194 @@ function updateAlarm() {
   // Wysyłamy maskę bitową dni tygodnia
   fetch(`/set?alTime=${t}&alOn=${on}&alDays=${currentAlarmDays}&alMel=${mel}&hChime=${chime}`);
 }
-
 function toggleAlarmIcon() {
   let isON = document.getElementById('alActive').checked;
   let icon = document.getElementById('alIcon');
   if(isON) icon.classList.add('alarm-active-icon');
   else icon.classList.remove('alarm-active-icon');
 }
-
 function updateMute() {
   let m = document.getElementById('mMute').checked ? 1 : 0;
   fetch(`/set?mMute=${m}`);
 }
-
 function setBuzzerVol(v) {
   document.getElementById('bzVolVal').textContent = "Poziom: " + v + "%";
   // Używamy debounce lub wysyłamy przy zmianie
   fetch(`/set?bzVol=${v}`);
 }
-
 function markUnsaved() {
   document.getElementById('saveBtn').classList.add('pulse-active');
 }
-
 function markAdvUnsaved() {
   document.getElementById('advBtn').classList.add('adv-pulse');
 }
-
 function loadStatus(){
   // Dodajemy timestamp, aby zapobiec cachowaniu odpowiedzi przez przeglądarkę
   fetch('/status?t=' + Date.now()).then(r=>r.text()).then(t=>{
     let lines=t.trim().split('\n');
     let box=document.getElementById('statusBox');
     box.innerHTML='';
+    lines.forEach(l => {
+      // 1. Uniwersalne rozbicie linii na klucz i wartość
+      let p = l.split('=');
+      if (p.length < 2) return;
+      let key = p[0].trim();
+      let val = p[1].trim();
 
-    lines.forEach(l=>{
-      // Pomocniczy podział linii na klucz i wartość
-      let parts = l.split('=');
-      if (parts.length < 2) return;
-      let key = parts[0].trim();
-      let val = parts[1].trim();
+      // Mapowanie nazw (Zegar -> Strona WWW)
+      const keyToId = {
+        "tOff": "tOff",
+        "rDark": "rDark",
+        "rBright": "rBright",
+        "nStart": "inpNStart",
+        "nEnd": "inpNEnd",
+        "alMel": "alMel",
+        "bzVol": "bzVol",
+        "alTime": "alTime"
+      };
 
-      // --- OBSŁUGA TRYBU NOCNEGO ---
-      if(key === "nStart") nStart = val;
-      if(key === "nEnd")   nEnd = val;
+      // Automatyczne wypełnianie pól formularza
+      let targetId = keyToId[key];
+      if (targetId && !isEditing && document.activeElement.id !== targetId) {
+        let el = document.getElementById(targetId);
+        if (el) el.value = val;
+      }
 
-      if(key === "night"){
-        let isNight = (val === "1");
-        // Ikonka księżyca przy zegarze
-        document.getElementById('nightIcon').style.display = isNight ? "inline-block" : "none";
-        
-        let bzVal = document.getElementById('bzVolVal');
-        if (bzVal) {
-          // Zawsze czyścimy tekst z poprzednich nawiasów (zapobiega puchnięciu napisu)
-          let baseText = bzVal.textContent.split('(')[0].trim();
-          if (isNight) {
-            bzVal.innerHTML = baseText + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (♫ Tryb nocny " + nStart + "-" + nEnd + ")</span>";
-          } else {
-            bzVal.textContent = baseText; // W dzień przywracamy czysty tekst
+      // 2. Obsługa parametrów specjalnych (Nagłówek i zmienne pomocnicze)
+      if (key === "id")  { let h = document.getElementById('hdrID'); if(h) h.textContent = `[ID: ${val}]`; }
+      if (key === "ver") document.getElementById('fwVer').textContent = val;
+      if (key === "nStart") { nStart = val; if(!isEditing) document.getElementById('inpNStart').value = val; }
+      if (key === "nEnd")   { nEnd = val;   if(!isEditing) document.getElementById('inpNEnd').value = val; }
+
+      // 3. Obsługa RSSI (Ładna linia + kropki)
+      if (key === "rssi") {
+        let v = parseInt(val), q, c, d;
+        if(v >= -50) { q="Doskonały"; c="#00ff99"; d="●●●"; }
+        else if(v >= -72) { q="Dobry"; c="#6ab8ff"; d="●●○"; }
+        else if(v >= -85) { q="Dostateczny"; c="#ffaa00"; d="●○○"; }
+        else { q="Słaby"; c="#ff4444"; d="◦◦◦"; }
+        let ri = document.getElementById('rssiIcon');
+        if(ri) { ri.textContent = d; ri.style.color = c; }
+        let div = document.createElement('div');
+        div.className = 'statusLine';
+        div.innerHTML = `📶 Sygnał: <span style="color:${c}; font-weight:bold;">${v} dBm</span> (${q})`;
+        box.appendChild(div);
+      }
+
+      // 4. GŁÓWNY SWITCH LOGIKI
+      switch (key) {
+        case "time":
+          let t = val.split(":");
+          if(t.length === 3) {
+            localTime.setHours(parseInt(t[0]));
+            localTime.setMinutes(parseInt(t[1]));
+            localTime.setSeconds(parseInt(t[2]));
+            lastSyncTime = new Date();
           }
-        }
-      }
-      if(key === "nStart") {
-        nStart = val;
-        if(!isEditing) document.getElementById('inpNStart').value = val;
-      }
-      if(key === "nEnd") {
-        nEnd = val;
-        if(!isEditing) document.getElementById('inpNEnd').value = val;
-      }
-
-      if(l.startsWith("id=")){
-        let deviceID = l.substring(3).trim();
-        let hdr = document.getElementById('hdrID');
-        if(hdr) hdr.textContent = "[ID: " + deviceID + "]";
-      }
-      let div=document.createElement('div');
-      div.className='statusLine';
-      div.textContent=l;
-      box.appendChild(div);
-
-      if(l.startsWith("time=")){
-        let parts = l.substring(5).split(":");
-        if(parts.length === 3) {
-          // Synchronizacja lokalnego czasu z tym z ESP32
-          localTime.setHours(parseInt(parts[0]));
-          localTime.setMinutes(parseInt(parts[1]));
-          localTime.setSeconds(parseInt(parts[2]));
-          lastSyncTime = new Date(); // Reset licznika płynności
-        }
-      }
-
-      if(l.startsWith("date=")){
-        let d = l.substring(5).trim();
-        // AKTUALIZUJ TYLKO JEŚLI DANE NIE SĄ PUSTE LUB KRESKAMI
-        if(d.length > 5 && d !== "--.--.----") {
-          let dayLine = lines.find(line => line.startsWith("day="));
-          let dayName = dayLine ? dayLine.substring(4) : "";
-          document.getElementById('dateText').textContent = dayName + ", " + d;
-        }
-      }
-
-      if(l.startsWith("alDays=")){
-        currentAlarmDays = parseInt(l.substring(7));
-        for(let i=0; i<7; i++) {
-          let btn = document.getElementById('day-'+i);
-          if(btn) { // Sprawdzenie czy przycisk istnieje (dla wersji bez buzzera)
-            if(currentAlarmDays & (1 << i)) btn.classList.add('active');
-            else btn.classList.remove('active');
+          break;
+        case "date":
+          let dLine = lines.find(line => line.startsWith("day="));
+          let dName = dLine ? dLine.split('=')[1] : "";
+          document.getElementById('dateText').textContent = `${dName}, ${val}`;
+          break;
+        case "tempC":
+          let tv = parseFloat(val);
+          document.getElementById('bigTemp').textContent = (val === "nan" || tv < -80) ? "--.- °C" : tv.toFixed(1) + " °C";
+          break;
+        case "brightness":
+          if (firstStatus || document.getElementById('auto').checked) {
+            document.getElementById('bright').value = val;
+            document.getElementById('brightVal').textContent = "Aktualnie: " + val;
           }
-        }
-      }
-      
-      if(l.startsWith("mMute=")) {
-        let isMuted = (l.substring(6) === "1");
-        document.getElementById('mMute').checked = isMuted;
-  
-        // Efekt wizualny dla sekcji głośności
-        let volInput = document.getElementById('bzVol');
-        if(isMuted) {
-          volInput.style.filter = "grayscale(1) opacity(0.3)";
-          volInput.style.pointerEvents = "none"; // Blokada klikania
-        } else {
-          volInput.style.filter = "none";
-          volInput.style.pointerEvents = "auto";
-        }
-      }
-
-      if(l.startsWith("lastSync=")){
-        document.getElementById('lastSync').textContent = "Synchronizacja: " + l.substring(9);
-      }
-
-      if(l.startsWith("tempC=")){
-        let v = l.substring(6).trim();
-        if (v === "nan" || parseFloat(v) < -80) {
-          document.getElementById('bigTemp').textContent = "--.- °C";
-        } else {
-          document.getElementById('bigTemp').textContent = parseFloat(v).toFixed(1) + " °C";
-        }
-      }
-    
-      if(l.startsWith("brightness=")){
-        let v = l.substring(11);
-        const brightInput = document.getElementById('bright');
-        
-        // Aktualizujemy suwak tylko jeśli nie jest właśnie przesuwany przez użytkownika
-        if (firstStatus || document.getElementById('auto').checked) {
-          brightInput.value = v;
-          document.getElementById('brightVal').textContent = "Aktualnie: " + v;
-        }
-      }
-
-      if(l.startsWith("autoBrightness=")){
-        let isAuto = (l.substring(15) === "1");
-        document.getElementById('auto').checked = isAuto;
-        document.getElementById('bright').disabled = isAuto; // Blokada suwaka
-      }
-      // Obsługa pól kalibracji (tylko jeśli użytkownik nie klika w nie teraz)
-      if (!isEditing) {
-        if(l.startsWith("tOff=")) document.getElementById('tOff').value = l.substring(5);
-        if(l.startsWith("rDark=")) document.getElementById('rDark').value = l.substring(6);
-        if(l.startsWith("rBright=")) document.getElementById('rBright').value = l.substring(8);
-      }
-
-      if(l.startsWith("rawLDR=")) {
-        let val = l.substring(7);
-        document.getElementById('liveLDR').textContent = val;
-  
-        // Opcjonalnie: zmiana koloru jeśli wartość zbliża się do progów
-        let rd = parseInt(document.getElementById('rDark').value);
-        let rb = parseInt(document.getElementById('rBright').value);
-        if(val >= rd || val <= rb) {
-          document.getElementById('liveLDR').style.color = "#ff4444"; // Alarm - poza zakresem
-        } else {
-          document.getElementById('liveLDR').style.color = "#00ffaa"; // OK
-        }
-      }
-
-      // Obsługa Alarmu
-      if(l.startsWith("isAlarming=")){
-        let isAlarming = (l.substring(11) === "1");
-        // Jeśli alarm gra, pokazujemy przycisk STOP, w przeciwnym razie ukrywamy
-        document.getElementById('stopAl').style.display = isAlarming ? "block" : "none";
-      }
-      if(l.startsWith("alTime=")) {
-        // Aktualizujemy pole czasu w panelu tylko raz (przy ładowaniu) 
-        // lub gdy użytkownik nie edytuje właśnie pola
-        if (!isEditing) document.getElementById('alTime').value = l.substring(7);
-      }
-      if(l.startsWith("alActive=")) {
-        document.getElementById('alActive').checked = (l.substring(9) === "1");
-        toggleAlarmIcon(); // Aktualizuje ikonę przy odświeżeniu statusu
-      }
-      if(l.startsWith("hasBuzzer=")){
-        let hasBuzzer = (l.substring(10) === "1");
-        document.getElementById('alarmSection').style.display = hasBuzzer ? "block" : "none";
-      }
-      if(l.startsWith("bzVol=")) {
-        document.getElementById('bzVol').value = l.substring(6);
-        document.getElementById('bzVolVal').textContent = "Poziom: " + l.substring(6) + "%";
-      }
-      // --- OBSŁUGA MELODII ("nowym sposobem" z key/val) ---
-      if(key === "alMel") {
-        let sel = document.getElementById('alMel');
-        if (sel && document.activeElement !== sel) sel.value = val;
+          break;
+        case "autoBrightness":
+          let isA = (val === "1");
+          document.getElementById('auto').checked = isA;
+          let bInput = document.getElementById('bright');
+          if (bInput) {
+            bInput.disabled = isA; 
+            // To sprawi, że suwak wizualnie "zgaśnie" (stanie się szary/półprzezroczysty)
+            bInput.style.opacity = isA ? "0.3" : "1";
+            bInput.style.filter = isA ? "grayscale(1)" : "none";
+          }
+          break;
+        case "rawLDR":
+          let ldrEl = document.getElementById('liveLDR');
+          ldrEl.textContent = val;
+          let rd = parseInt(document.getElementById('rDark').value), rb = parseInt(document.getElementById('rBright').value);
+          ldrEl.style.color = (parseInt(val) >= rd || parseInt(val) <= rb) ? "#ff4444" : "#00ffaa";
+          break;
+        case "alDays":
+          currentAlarmDays = parseInt(val);
+          for(let i=0; i<7; i++) {
+            let btn = document.getElementById('day-'+i);
+          if(btn) btn.classList.toggle('active', !!(currentAlarmDays & (1 << i)));
+          }
+          break;
+        case "alTime":
+          if (!isEditing) document.getElementById('alTime').value = val;
+          break;
+        case "alActive":
+          document.getElementById('alActive').checked = (val === "1");
+          if(typeof toggleAlarmIcon === "function") toggleAlarmIcon();
+          break;
+        case "isAlarming":
+          document.getElementById('stopAl').style.display = (val === "1") ? "block" : "none";
+          break;
+        case "bzVol":
+          document.getElementById('bzVol').value = val;
+          document.getElementById('bzVolVal').textContent = `Poziom: ${val}%`;
+          break;
+        case "alMel":
+          let melSel = document.getElementById('alMel');
+          if (melSel && document.activeElement !== melSel) melSel.value = val;
+          break;
+        case "hChime":
+          document.getElementById('hChime').checked = (val === "1");
+          break;
+        case "mMute":
+          let isM = (val === "1");
+          document.getElementById('mMute').checked = isM;
+          let vIn = document.getElementById('bzVol');
+          vIn.style.filter = isM ? "grayscale(1) opacity(0.3)" : "none";
+          vIn.style.pointerEvents = isM ? "none" : "auto";
+          break;
+        case "night":
+          let isN = (val === "1");
+          document.getElementById('nightIcon').style.display = isN ? "inline-block" : "none";
+          let bz = document.getElementById('bzVolVal');
+          if (bz) {
+            let base = bz.textContent.split('(')[0].trim();
+            bz.innerHTML = isN ? `${base} <span style="color:#ffaa00; text-shadow:0 0 8px #ff8800;"> (♫ Tryb nocny ${nStart}-${nEnd})</span>` : base;
+          }
+          break;
+        case "lastSync":
+          document.getElementById('lastSync').textContent = "Synchronizacja: " + val;
+          break;
+        case "hasBuzzer":
+          document.getElementById('alarmSection').style.display = (val === "1") ? "block" : "none";
+          break;
       }
 
-      if(l.startsWith("hChime=")) {
-        document.getElementById('hChime').checked = (l.substring(7) === "1");
+      // 5. WYŚWIETLANIE SUROWYCH DANYCH (Z filtrem)
+      const hide = ["id", "rssi", "ver", "nStart", "nEnd", "night", "day"];
+      if (!hide.includes(key)) {
+        let div = document.createElement('div');
+        div.className = 'statusLine';
+        div.textContent = `${key}=${val}`;
+        box.appendChild(div);
       }
-
-      // Firmware version
-      if(l.startsWith("ver=")) {
-        document.getElementById('fwVer').textContent = l.substring(4);
-      }
-
     });
     firstStatus = false;
   }).catch(err => console.log("Status offline"));
 }
-
 // Obsługa flagi edycji - gdy użytkownik kliknie w pole, przestajemy nadpisywać mu tekst
 function setEdit(state) {
   isEditing = state;
 }
-
 // Odświeżanie co 1 sekundę
 setInterval(loadStatus, 1000);
 window.onload = loadStatus;
-
 // Uniwersalna obsługa klawisza Enter dla wszystkich pól formularza
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') {
@@ -522,7 +466,6 @@ document.addEventListener('keydown', function (e) {
     }
   }
 });
-
 // Zaktualizowana funkcja applyAdv (zdejmuje blokadę edycji po wysłaniu)
 function applyAdv() {
   let to = document.getElementById('tOff').value;
@@ -552,13 +495,10 @@ function applyAdv() {
     });
 }
 </script>
-
 </head>
 <body>
-
 <div class="card">
 <h2>Ustawienia Zegara</h2>
-
 <div class="bigClockBox">
   <div style="display:flex; justify-content:center; align-items:center; gap:10px;">
     <div id="nightIcon" style="font-size:24px; filter:drop-shadow(0 0 8px #ffaa00); display:none;">🌙</div>
@@ -568,7 +508,6 @@ function applyAdv() {
   <div id="bigDate" class="bigDate"><span class="calendar-icon">📅</span><span id="dateText">-- --- ----</span></div>
   <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
 </div>
-
 <div id="alarmSection" style="display:none; border-top:1px solid #333; margin-top:20px; padding-top:10px;">
   
   <!-- NOWY ACTION BAR: Ikona - Godzina - Switch -->
@@ -576,20 +515,17 @@ function applyAdv() {
     
     <!-- Duża ikona z ID dla animacji -->
     <div id="alIcon" style="font-size:32px; transition: 0.3s;">⏰</div>
-
     <!-- Wybór godziny (Środek) -->
     <div style="flex-grow:1; text-align:center;">
       <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
            style="width:115px; background:#05060a; color:#fff; border:1px solid #444; padding:8px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none;">
     </div>
-
     <!-- Przełącznik ON/OFF (Prawa) -->
     <label class="switch">
       <input type="checkbox" id="alActive" onchange="updateAlarm(); markUnsaved(); toggleAlarmIcon()">
       <span class="slider round"></span>
     </label>
   </div>
-
   <!-- Dni tygodnia -->
   <div style="display:flex; justify-content:space-between; margin:15px 0;">
     <!-- Dni tygodnia jako małe neonowe kafelki -->
@@ -605,20 +541,17 @@ function applyAdv() {
     <div id="day-6" class="day-btn" onclick="toggleDay(6); markUnsaved()">So</div>
     <div id="day-0" class="day-btn" onclick="toggleDay(0); markUnsaved()" style="color:#ff9f9f;">Nd</div>
   </div>
-
   <select id="alMel" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
     <option value="0">🎼Melodia: Klasyczna</option>
     <option value="1">🎼Melodia: Radosna</option>
     <option value="2">🎼Melodia: Syrena</option>
   </select>
-
   <label style="margin-top:15px; font-size:13px; color:#aaa;">🔊 Głośność</label>
   <input type="range" id="bzVol" min="0" max="100" oninput="setBuzzerVol(this.value); markUnsaved()" style="margin-top:5px;">
   <div id="bzVolVal" style="margin-top:8px; font-size:11px; color:#666;">Poziom: --%</div>
-
   <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff; margin-top:15px;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
   
-  <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
+  <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
     <!-- Master Mute -->
     <div style="display:flex; align-items:center; gap:8px;">
       <input type="checkbox" id="mMute" onchange="updateMute(); markUnsaved()" style="margin:0; cursor:pointer;">
@@ -631,8 +564,9 @@ function applyAdv() {
     </div>
   </div>
 </div>
-
-<div style="display:flex; justify-content:space-between; align-items:center; margin-top:25px;">
+<!-- SYMETRYCZNA LINIA ODDZIELAJĄCA -->
+<div style="margin: 25px 0; border-top: 1px solid #333;"></div>
+<div style="display:flex; justify-content:space-between; align-items:center;">
   <label style="margin:0;">🔆 Jasność</label>
   <div style="display:flex; align-items:center; gap:8px;">
     <input type="checkbox" id="auto" onchange="setAuto(); markUnsaved()" style="margin:0; cursor:pointer;">
@@ -641,7 +575,6 @@ function applyAdv() {
 </div>
 <input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
 <div class="value" id="brightVal">Aktualnie: --</div>
-
 <button id="saveBtn" class="btn save" onclick="save()">💾 Zapisz</button>
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowane</summary>
@@ -685,21 +618,19 @@ function applyAdv() {
     <div style="font-size:10px; color:#444; margin-top:12px; text-align:center; opacity:0.7;">Zmiany będą aktywne TYLKO do restartu, chyba że klikniesz główny przycisk ZAPISZ.</div>
   </div>
 </details>
-
 <button class="btn reset" style="width:100%; margin-top:10px; font-size:16px; background:#222; border:1px solid #0070ff44;" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
-
 <div style="font-size:10px; color:#333; text-align:center; margin-top:15px; letter-spacing:1px;">
   MyClock ESP32 | <span id="fwVer">v1.x</span>
 </div>
 <details class="statusBox" style="cursor:pointer;">
   <summary class="titleSmall" style="outline:none; list-style:none; display:flex; align-items:center;">
     📊 Status <span id="hdrID" style="margin-left:10px; opacity:0.8; font-size:17px; font-family:monospace; color:#6ab8ff;">[ID: ----]</span>
+    <span id="rssiIcon" style="margin-left:10px; font-size:12px; letter-spacing:1px;"></span>
   </summary>
   <div id="statusBox" style="margin-top:10px;">Ładowanie...</div>
 </details>
 <button class="btn reset" style="width:100%; margin-top:15px; font-size:16px;" onclick="reset()">🔀 Przywróć fabryczne</button>
 <button class="btn reset" style="width:100%; margin-top:15px; font-size:16px; color:#ff4444; border:1px solid #ff444444;" onclick="reboot()">🔄 Restart Systemu</button>
-
 </div>
 </body>
 </html>

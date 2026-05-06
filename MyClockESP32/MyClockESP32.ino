@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.7.0-Versatile NeonAction"
+#define FW_VERSION "[CC/CA]202605.1.7.3-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
