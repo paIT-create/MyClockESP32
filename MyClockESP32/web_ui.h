@@ -295,7 +295,7 @@ function loadStatus(){
           // Zawsze czyścimy tekst z poprzednich nawiasów (zapobiega puchnięciu napisu)
           let baseText = bzVal.textContent.split('(')[0].trim();
           if (isNight) {
-            bzVal.innerHTML = baseText + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (Tryb nocny " + nStart + "-" + nEnd + ")</span>";
+            bzVal.innerHTML = baseText + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800;'> (♫ Tryb nocny " + nStart + "-" + nEnd + ")</span>";
           } else {
             bzVal.textContent = baseText; // W dzień przywracamy czysty tekst
           }
@@ -545,7 +545,7 @@ function applyAdv() {
   </div>
   
   <!-- Wybór godziny -->
-  <div style="text-align:center; margin-top:15px;">
+  <div style="text-align:center; margin-top:5px;">
     <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
          style="width:120px; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none; transition:0.3s;">
   </div>
@@ -567,14 +567,14 @@ function applyAdv() {
   </div>
 
   <select id="alMel" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
-    <option value="0">Melodia: Klasyczna</option>
-    <option value="1">Melodia: Radosna</option>
-    <option value="2">Melodia: Syrena</option>
+    <option value="0">🎼Melodia: Klasyczna</option>
+    <option value="1">🎼Melodia: Radosna</option>
+    <option value="2">🎼Melodia: Syrena</option>
   </select>
 
-  <label style="margin-top:15px; font-size:13px; color:#aaa;">Głośność buzzera</label>
+  <label style="margin-top:15px; font-size:13px; color:#aaa;">🔊 Głośność</label>
   <input type="range" id="bzVol" min="0" max="100" oninput="setBuzzerVol(this.value); markUnsaved()" style="margin-top:5px;">
-  <div id="bzVolVal" style="font-size:11px; color:#666;">Poziom: --%</div>
+  <div id="bzVolVal" style="margin-top:8px; font-size:11px; color:#666;">Poziom: --%</div>
 
   <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff; margin-top:15px;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
   
@@ -618,12 +618,12 @@ function applyAdv() {
     <!-- LDR Dark i Bright -->
     <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label style="font-size:11px; color:#666; display:block;">LDR Dark (Ciemno)</label>
+        <label style="font-size:11px; color:#666; display:block;">🕯️ LDR Dark (Ciemno)</label>
         <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
       <div style="flex:1;">
-        <label style="font-size:11px; color:#666; display:block;">LDR Bright (Jasno)</label>
+        <label style="font-size:11px; color:#666; display:block;">💡 LDR Bright (Jasno)</label>
         <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
@@ -646,8 +646,7 @@ function applyAdv() {
   </div>
 </details>
 
-<button class="btn reset" style="width:100%; margin-top:15px; font-size:14px;" onclick="reset()">↺ Przywróć fabryczne</button>
-<button class="btn reset" style="width:100%; margin-top:10px; font-size:14px; background:#222; border:1px solid #0070ff44;" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
+<button class="btn reset" style="width:100%; margin-top:10px; font-size:16px; background:#222; border:1px solid #0070ff44;" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
 
 <div style="font-size:10px; color:#333; text-align:center; margin-top:15px; letter-spacing:1px;">
   MyClock ESP32 | <span id="fwVer">v1.x</span>
@@ -658,8 +657,8 @@ function applyAdv() {
   </summary>
   <div id="statusBox" style="margin-top:10px;">Ładowanie...</div>
 </details>
-
-<button class="btn reset" style="width:100%; margin-top:10px; font-size:14px; color:#ff4444; border:1px solid #ff444444;" onclick="reboot()">🔄 Restart Systemu</button>
+<button class="btn reset" style="width:100%; margin-top:15px; font-size:16px;" onclick="reset()">🔀 Przywróć fabryczne</button>
+<button class="btn reset" style="width:100%; margin-top:15px; font-size:16px; color:#ff4444; border:1px solid #ff444444;" onclick="reboot()">🔄 Restart Systemu</button>
 
 </div>
 </body>
