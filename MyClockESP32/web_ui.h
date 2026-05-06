@@ -137,6 +137,33 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
   border-color: #0088ff;
   box-shadow: 0 0 20px #0088ff, inset 0 0 10px #0088ff44;
 }
+/* Styl dla przełącznika (Toggle Switch) */
+.switch {
+  position: relative; display: inline-block;
+  width: 50px; height: 26px; flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #111; border: 1px solid #444;
+  transition: .4s; border-radius: 34px;
+}
+.slider:before {
+  position: absolute; content: "";
+  height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background-color: #666; transition: .4s; border-radius: 50%;
+}
+input:checked + .slider { background-color: #0050ff33; border-color: #0070ff; box-shadow: 0 0 10px #0070ff66; }
+input:checked + .slider:before { transform: translateX(24px); background-color: #6ab8ff; box-shadow: 0 0 8px #fff; }
+
+/* Dodatkowy styl dla animacji ikony budzika */
+@keyframes alarm-pulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 5px #ff444466); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 15px #ff4444); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 5px #ff444466); }
+}
+.alarm-active-icon { animation: alarm-pulse 2s infinite ease-in-out; }
 </style>
 
 <script>
@@ -246,6 +273,13 @@ function updateAlarm() {
   let chime = document.getElementById('hChime').checked ? 1 : 0;
   // Wysyłamy maskę bitową dni tygodnia
   fetch(`/set?alTime=${t}&alOn=${on}&alDays=${currentAlarmDays}&alMel=${mel}&hChime=${chime}`);
+}
+
+function toggleAlarmIcon() {
+  let isON = document.getElementById('alActive').checked;
+  let icon = document.getElementById('alIcon');
+  if(isON) icon.classList.add('alarm-active-icon');
+  else icon.classList.remove('alarm-active-icon');
 }
 
 function updateMute() {
@@ -430,6 +464,7 @@ function loadStatus(){
       }
       if(l.startsWith("alActive=")) {
         document.getElementById('alActive').checked = (l.substring(9) === "1");
+        toggleAlarmIcon(); // Aktualizuje ikonę przy odświeżeniu statusu
       }
       if(l.startsWith("hasBuzzer=")){
         let hasBuzzer = (l.substring(10) === "1");
@@ -534,20 +569,25 @@ function applyAdv() {
   <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
 </div>
 
-<div id="alarmSection" style="display:none;">
-  <!-- Nagłówek Budzika z przełącznikiem w jednej linii -->
-  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #333; margin-top:20px; padding-top:15px;">
-    <label style="margin:0; color:#ff9f9f; text-shadow:0 0 8px #ff4444;">⏰ Budzik</label>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <input type="checkbox" id="alActive" onchange="updateAlarm(); markUnsaved()" style="margin:0; cursor:pointer;">
-      <label for="alActive" style="margin:0; font-size:14px; color:#ff9f9f; text-shadow:0 0 6px #ff4444; cursor:pointer;">Włączony</label>
-    </div>
-  </div>
+<div id="alarmSection" style="display:none; border-top:1px solid #333; margin-top:20px; padding-top:10px;">
   
-  <!-- Wybór godziny -->
-  <div style="text-align:center; margin-top:5px;">
-    <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
-         style="width:120px; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none; transition:0.3s;">
+  <!-- NOWY ACTION BAR: Ikona - Godzina - Switch -->
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px;">
+    
+    <!-- Duża ikona z ID dla animacji -->
+    <div id="alIcon" style="font-size:32px; transition: 0.3s;">⏰</div>
+
+    <!-- Wybór godziny (Środek) -->
+    <div style="flex-grow:1; text-align:center;">
+      <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
+           style="width:115px; background:#05060a; color:#fff; border:1px solid #444; padding:8px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none;">
+    </div>
+
+    <!-- Przełącznik ON/OFF (Prawa) -->
+    <label class="switch">
+      <input type="checkbox" id="alActive" onchange="updateAlarm(); markUnsaved(); toggleAlarmIcon()">
+      <span class="slider round"></span>
+    </label>
   </div>
 
   <!-- Dni tygodnia -->
