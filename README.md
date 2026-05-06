@@ -6,7 +6,7 @@ MyClockESP32 Final
 Profesjonalny zegar oparty na układzie ESP32, synchronizowany czasem NTP, wyposażony w czujnik temperatury DS18B20, inteligentną regulację jasności oraz rozbudowany panel konfiguracyjny "Neon-Glow".
 ## 🚀 Kluczowe cechy
 
-* Synchronizacja NTP: Precyzyjny czas pobierany z serwerów GUM (tempus1.gum.gov.pl) z automatyczną obsługą stref czasowych i czasu letniego (DST).
+* Synchronizacja NTP: Precyzyjny czas pobierany z serwerów GUM (tempus1.gum.gov.pl) z automatyczną obsługą stref czasowych i czasu letniego (DST). Synchronizacja wyświetlania z precyzją poniżej 50ms między wieloma urządzeniami.
 * Dual-Core Processing: Rozdzielenie zadań na dwa rdzenie (WiFi/Web na Core 0, Logika/Wyświetlacz na Core 1) zapewnia płynność pracy bez migotania LED.
 * Panel Konfiguracyjny Web: Nowoczesny interfejs w stylu "Neon-Glow" (zoptymalizowany pod kątem pamięci PROGMEM) dostępny przez przeglądarkę.
 * Inteligentna Jasność (LDR): Automatyczna regulacja jasności na podstawie czujnika światła z funkcją kalibracji progów "Live View" w panelu WWW.
