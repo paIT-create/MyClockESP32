@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.6.5-Versatile AudioGlow"
+#define FW_VERSION "[CC/CA]202605.1.6.6-Versatile AudioGlow"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -453,10 +453,17 @@ void TimeTask(void *pv) {
           vTaskDelay(pdMS_TO_TICKS(50));
           beep(4000, 50);
         }
+        // --- KLUCZ DO SYNCHRONIZACJI 20250506 v1.6.6 ---
+        // Obliczamy ile milisekund zostało do końca OBECNEJ sekundy
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        int ms_to_wait = 1000 - (tv.tv_usec / 1000);
+        // Zasypiamy dokładnie do początku nowej sekundy (+ mały margines 10ms)
+        vTaskDelay(pdMS_TO_TICKS(ms_to_wait + 10));
       }
     }
-    // 100ms to złoty środek dla zegara
-    vTaskDelay(pdMS_TO_TICKS(100));
+    // 100ms to złoty środek dla zegara; 20250506 v1.6.6 zmiana ze 100 na 50ms dla lepszej synchronizacji
+    vTaskDelay(pdMS_TO_TICKS(50));  // Krótka przerwa jeśli nie było zmiany
   }
 }
 // -----------------------------------------------------------------------------
@@ -802,7 +809,7 @@ void timeSyncCallback(struct timeval *tv) {
   struct tm ti;
   getLocalTime(&ti);
   // Formatujemy datę i godzinę sukcesu
-  snprintf(g_lastSyncTimeStr, sizeof(g_lastSyncTimeStr), "%02d.%02d %02d:%02d:%02d",
+  snprintf(g_lastSyncTimeStr, sizeof(g_lastSyncTimeStr), "%02d.%02d %02d:%02d:%02d ✔",
            ti.tm_mday, ti.tm_mon + 1, ti.tm_hour, ti.tm_min, ti.tm_sec);
   //Serial.println(g_lastSyncTimeStr);
   Serial.print("Aktualny czas: ");
