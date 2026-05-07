@@ -162,6 +162,53 @@ input:checked + .slider:before { transform: translateX(24px); background-color: 
   100% { transform: scale(1); filter: drop-shadow(0 0 5px #ff444466); }
 }
 .alarm-active-icon { animation: alarm-pulse 2s infinite ease-in-out; }
+/* Przyspieszenie reakcji na dotyk dla wszystkich przycisków */
+button, .day-btn, .switch {
+  touch-action: manipulation;
+}
+/* Styl dla paska suwaka temperatury */
+#tOff {
+  -webkit-appearance: none; /* Ukrywa standardowy wygląd */
+  width: 100%;
+  height: 6px;
+  background: #1a1d26;
+  border-radius: 5px;
+  outline: none;
+  border: 1px solid #333;
+  margin: 15px 0;
+}
+/* Styl dla gałki (uchwytu) - Chrome, Safari, Edge, iOS */
+/*
+#tOff::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;               /* Powiększono pod kciuk */
+  height: 28px;              /* Powiększono pod kciuk */
+  background: #ffaa00;       /* Twój złoty kolor */
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 0 15px #ffaa00aa, 0 0 5px #000; /* Mocniejszy glow */
+  border: 3px solid #0a0c12; /* Wyraźniejsze odcięcie od paska */
+}
+*/
+#tOff::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 32px; /* Jeszcze ciut większa pod kciuk */
+  height: 32px;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid #0a0c12;
+  transition: background 0.2s, box-shadow 0.2s; /* Płynne przejście kolorów */
+}
+/* Styl dla gałki - Firefox (też powiększamy dla spójności) */
+#tOff::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid #0a0c12;
+}
 </style>
 <script>
 let hh="--", mm="--", ss="--";
@@ -455,6 +502,12 @@ function loadStatus(){
         case "hasBuzzer":
           document.getElementById('alarmSection').style.display = (val === "1") ? "block" : "none";
           break;
+        case "tOff":
+          if (!isEditing) {
+            document.getElementById('tOff').value = val;
+            document.getElementById('tOffDisp').textContent = parseFloat(val).toFixed(1);
+          }
+          break;
       }
 
       // 5. WYŚWIETLANIE SUROWYCH DANYCH (Z filtrem)
@@ -533,6 +586,57 @@ function updateNightFieldsStyle() {
     s.style.opacity = e.style.opacity = isDisabled ? "0.4" : "1";
     s.style.color = e.style.color = isDisabled ? "#888" : "#fff";
   }
+}
+function sendTempCorrection(val) {
+  // Dla iOS wymuszamy blokadę na wypadek, gdyby oninput nie zaskoczył
+  setEdit(true);
+  // Wysyłamy nową wartość do ESP
+  fetch(`/set?tOff=${val}`)
+    .then(() => {
+      console.log("Korekta wysłana: " + val);
+      // Krótkie wibracje na potwierdzenie wysłania
+      if(window.navigator.vibrate) navigator.vibrate([15, 30, 15]);
+      // Po wysłaniu trzymamy blokadę jeszcze przez 2 sekundy, 
+      // aby ESP zdążyło zaktualizować status
+      setTimeout(() => { setEdit(false); }, 2000);
+      markUnsaved(); // Żeby nie zapomnieć o trwałym zapisie do NVS
+    })
+    .catch(err => {
+      setEdit(false);
+      console.error("Błąd wysyłania korekty:", err);
+    });
+}
+function updateThumbColor(val) {
+  let v = parseFloat(val);
+  let color = "#ffaa00"; // Złoty środek (0.0)
+  
+  if (v < 0) {
+    // Zimno: Od błękitu do głębokiego niebieskiego
+    let b = Math.round(255 - (Math.abs(v) * 20));
+    color = `rgb(0, ${b}, 255)`;
+  } else if (v > 0) {
+    // Ciepło: Od pomarańczu do ciemnej czerwieni
+    let r = Math.round(255 - (v * 15));
+    color = `rgb(255, ${r}, 0)`;
+  }
+
+  // Aplikujemy kolor do tekstu
+  document.getElementById('tOffDisp').style.color = color;
+
+  // TWÓRZYMY STYL DLA GAŁKI (Dla Firefoxa i Chrome/Safari)
+  let styleId = "dynamicThumbStyle";
+  let styleEl = document.getElementById(styleId);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  
+  // Wpisujemy reguły CSS dla obu typów gałek
+  styleEl.innerHTML = `
+    #tOff::-webkit-slider-thumb { background: ${color} !important; box-shadow: 0 0 15px ${color}aa !important; }
+    #tOff::-moz-range-thumb { background: ${color} !important; box-shadow: 0 0 15px ${color}aa !important; }
+  `;
 }
 // Uniwersalny "strażnik" edycji dla wszystkich pól
 document.querySelectorAll('input, select').forEach(el => {
@@ -624,10 +728,16 @@ document.querySelectorAll('input, select').forEach(el => {
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowane</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
-    <!-- Korekta Temp -->
+    <!-- Korekta Temp
     <label for="tOff" style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
     <input type="number" id="tOff" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()" step="0.1"
            style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:6px; display:block;">
+    -->
+    <label for="tOff" style="font-size:14px; display:block; color:#888;">🌡️ Korekta Temp: <span id="tOffDisp" style="color:#ffaa00; text-shadow:0 0 8px #ffaa0066; font-weight:bold;">--.-</span>°C</label>
+    <input type="range" id="tOff" min="-9.0" max="9.0" step="0.1"
+          oninput="setEdit(true); document.getElementById('tOffDisp').textContent=this.value; updateThumbColor(this.value); if(window.navigator.vibrate)navigator.vibrate(10);"
+          onchange="sendTempCorrection(this.value)"
+          style="width:100%; margin-top:8px; margin-bottom:15px;">
     <!-- LDR Live View -->
     <div style="margin-bottom:15px; padding:10px; background: #1a1d26; border-radius: 8px; text-align: center; border: 1px solid #0070ff22;">
       <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
