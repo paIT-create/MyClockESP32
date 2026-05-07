@@ -174,6 +174,7 @@ let isEditing = false; // Flaga blokująca auto-odświeżanie pól podczas wpisy
 let currentAlarmDays = 127; // Domyślnie wszystkie dni
 let nStart = "22";
 let nEnd = "6";
+let currentID = "----"; 
 // Funkcja Debounce: wysyła żądanie dopiero 150ms po zakończeniu ruchu suwakiem
 function setBright(v) {
   if (document.getElementById('auto').checked) return;
@@ -293,7 +294,7 @@ function loadStatus(){
       let key = p[0].trim();
       let val = p[1].trim();
 
-      // Mapowanie nazw (Zegar -> Strona WWW)
+      // 1a. Mapowanie nazw (Zegar -> Strona WWW)
       const keyToId = {
         "tOff": "tOff",
         "rDark": "rDark",
@@ -305,18 +306,33 @@ function loadStatus(){
         "alTime": "alTime"
       };
 
-      // Automatyczne wypełnianie pól formularza
+      // 1b. Automatyczne wypełnianie pól formularza
       let targetId = keyToId[key];
-      if (targetId && !isEditing && document.activeElement.id !== targetId) {
+      if (targetId) {
         let el = document.getElementById(targetId);
-        if (el) el.value = val;
+        // Jeśli pole istnieje i NIE jest edytowane (ani przez flagę, ani przez focus)
+        if (el && !isEditing && document.activeElement !== el) {
+          el.value = val;
+        }
+        // Pomocniczo aktualizujemy zmienne globalne dla trybu nocnego
+        if (key === "nStart" || key === "nEnd") {
+          if (key === "nStart") nStart = val;
+          if (key === "nEnd") nEnd = val;
+          updateNightFieldsStyle();
+        }
       }
 
       // 2. Obsługa parametrów specjalnych (Nagłówek i zmienne pomocnicze)
-      if (key === "id")  { let h = document.getElementById('hdrID'); if(h) h.textContent = `[ID: ${val}]`; }
+      if (key === "id") {
+        let h = document.getElementById('hdrID');
+        if(h) {
+          currentID = val; // Zapamiętujemy ID na później
+          h.textContent = `[ID: ${val}]`;
+          // Aktualizacja tytułu karty w przeglądarce
+          document.title = "[" + val + "] Clock Config";
+        }
+      }
       if (key === "ver") document.getElementById('fwVer').textContent = val;
-      if (key === "nStart") { nStart = val; if(!isEditing) document.getElementById('inpNStart').value = val; }
-      if (key === "nEnd")   { nEnd = val;   if(!isEditing) document.getElementById('inpNEnd').value = val; }
 
       // 3. Obsługa RSSI (Ładna linia + kropki)
       if (key === "rssi") {
@@ -384,7 +400,11 @@ function loadStatus(){
           }
           break;
         case "alTime":
-          if (!isEditing) document.getElementById('alTime').value = val;
+          let elTime = document.getElementById('alTime');
+          // Sprawdzamy czy pole istnieje i czy NIE ma focusu
+          if (elTime && document.activeElement !== elTime) {
+            elTime.value = val;
+          }
           break;
         case "alActive":
           document.getElementById('alActive').checked = (val === "1");
@@ -414,10 +434,19 @@ function loadStatus(){
         case "night":
           let isN = (val === "1");
           document.getElementById('nightIcon').style.display = isN ? "inline-block" : "none";
-          let bz = document.getElementById('bzVolVal');
-          if (bz) {
-            let base = bz.textContent.split('(')[0].trim();
-            bz.innerHTML = isN ? `${base} <span style="color:#ffaa00; text-shadow:0 0 8px #ff8800;"> (♫ Tryb nocny ${nStart}-${nEnd})</span>` : base;
+  
+          // Dynamiczna zmiana tytułu karty (opcjonalnie)
+          document.title = (isN ? "🌙 [" : "🕒 [") + currentID + (isN ? "] Clock Config - Night Mode" : "] Clock Config");
+
+          let vLabel = document.getElementById('volLabel');
+          if (vLabel) {
+            // Czyścimy etykietę do stanu bazowego
+            let baseLabel = "🔊 Głośność";
+            if (isN) {
+              vLabel.innerHTML = baseLabel + " <span style='color:#ffaa00; text-shadow:0 0 8px #ff8800; font-size:13px;'> (♫ Tryb nocny " + nStart + "-" + nEnd + ")</span>";
+            } else {
+              vLabel.textContent = baseLabel;
+            }
           }
           break;
         case "lastSync":
@@ -468,6 +497,7 @@ document.addEventListener('keydown', function (e) {
 });
 // Zaktualizowana funkcja applyAdv (zdejmuje blokadę edycji po wysłaniu)
 function applyAdv() {
+  if (document.activeElement) document.activeElement.blur(); //wymusza zakończenie edycji dowolnego pola, które jest aktualnie aktywne (nawet tego zmienianego strzałkami)
   let to = document.getElementById('tOff').value;
   let rd = document.getElementById('rDark').value;
   let rb = document.getElementById('rBright').value;
@@ -494,6 +524,21 @@ function applyAdv() {
       isEditing = false;
     });
 }
+function updateNightFieldsStyle() {
+  let s = document.getElementById('inpNStart');
+  let e = document.getElementById('inpNEnd');
+  if (s && e) {
+    // Jeśli godziny są równe, ustaw mniejszą przezroczystość i szary kolor
+    let isDisabled = (s.value === e.value);
+    s.style.opacity = e.style.opacity = isDisabled ? "0.4" : "1";
+    s.style.color = e.style.color = isDisabled ? "#888" : "#fff";
+  }
+}
+// Uniwersalny "strażnik" edycji dla wszystkich pól
+document.querySelectorAll('input, select').forEach(el => {
+  el.addEventListener('focus', () => isEditing = true);
+  el.addEventListener('blur', () => isEditing = false);
+});
 </script>
 </head>
 <body>
@@ -517,7 +562,7 @@ function applyAdv() {
     <div id="alIcon" style="font-size:32px; transition: 0.3s;">⏰</div>
     <!-- Wybór godziny (Środek) -->
     <div style="flex-grow:1; text-align:center;">
-      <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" 
+      <input type="time" id="alTime" onchange="updateAlarm(); markUnsaved()" 
            style="width:115px; background:#05060a; color:#fff; border:1px solid #444; padding:8px; border-radius:12px; font-size:22px; text-align:center; box-shadow:0 0 15px #0070ff66; outline:none;">
     </div>
     <!-- Przełącznik ON/OFF (Prawa) -->
@@ -541,12 +586,12 @@ function applyAdv() {
     <div id="day-6" class="day-btn" onclick="toggleDay(6); markUnsaved()">So</div>
     <div id="day-0" class="day-btn" onclick="toggleDay(0); markUnsaved()" style="color:#ff9f9f;">Nd</div>
   </div>
-  <select id="alMel" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+  <select id="alMel" onchange="updateAlarm(); markUnsaved()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
     <option value="0">🎼Melodia: Klasyczna</option>
     <option value="1">🎼Melodia: Radosna</option>
     <option value="2">🎼Melodia: Syrena</option>
   </select>
-  <label style="margin-top:15px; font-size:13px; color:#aaa;">🔊 Głośność</label>
+  <label id="volLabel" for="bzVol" style="margin-top:15px; font-size:13px; color:#aaa;">🔊 Głośność</label>
   <input type="range" id="bzVol" min="0" max="100" oninput="setBuzzerVol(this.value); markUnsaved()" style="margin-top:5px;">
   <div id="bzVolVal" style="margin-top:8px; font-size:11px; color:#666;">Poziom: --%</div>
   <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff; margin-top:15px;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
@@ -567,7 +612,7 @@ function applyAdv() {
 <!-- SYMETRYCZNA LINIA ODDZIELAJĄCA -->
 <div style="margin: 25px 0; border-top: 1px solid #333;"></div>
 <div style="display:flex; justify-content:space-between; align-items:center;">
-  <label style="margin:0;">🔆 Jasność</label>
+  <label for="bright" style="margin:0;">🔆 Jasność</label>
   <div style="display:flex; align-items:center; gap:8px;">
     <input type="checkbox" id="auto" onchange="setAuto(); markUnsaved()" style="margin:0; cursor:pointer;">
     <label for="auto" style="margin:0; font-size:14px; color:#9fc9ff; text-shadow:0 0 6px #0044aa; cursor:pointer;">Auto</label>
@@ -580,8 +625,8 @@ function applyAdv() {
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowane</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
     <!-- Korekta Temp -->
-    <label style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
-    <input type="number" id="tOff" oninput="markAdvUnsaved()" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
+    <label for="tOff" style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
+    <input type="number" id="tOff" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()" step="0.1"
            style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:6px; display:block;">
     <!-- LDR Live View -->
     <div style="margin-bottom:15px; padding:10px; background: #1a1d26; border-radius: 8px; text-align: center; border: 1px solid #0070ff22;">
@@ -591,26 +636,26 @@ function applyAdv() {
     <!-- LDR Dark i Bright -->
     <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label style="font-size:11px; color:#666; display:block;">🕯️ LDR Dark (Ciemno)</label>
-        <input type="number" id="rDark" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
+        <label for="rDark" style="font-size:11px; color:#666; display:block;">🕯️ LDR Dark (Ciemno)</label>
+        <input type="number" id="rDark" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
       <div style="flex:1;">
-        <label style="font-size:11px; color:#666; display:block;">💡 LDR Bright (Jasno)</label>
-        <input type="number" id="rBright" oninput="markAdvUnsaved()" onfocus="setEdit(true)" onblur="setEdit(false)"
+        <label for="rBright" style="font-size:11px; color:#666; display:block;">💡 LDR Bright (Jasno)</label>
+        <input type="number" id="rBright" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
     </div>
     <!-- Godziny Nocne -->
     <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza Od (h)</label>
-        <input type="number" id="inpNStart" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
+        <label for="inpNStart" style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza Od (h)</label>
+        <input type="number" id="inpNStart" min="0" max="23" step="1" oninput="markAdvUnsaved(); updateNightFieldsStyle()" onchange="markAdvUnsaved(); updateNightFieldsStyle()"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
       <div style="flex:1;">
-        <label style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza Do (h)</label>
-        <input type="number" id="inpNEnd" min="0" max="23" step="1" onfocus="setEdit(true)" onblur="setEdit(false)" oninput="markAdvUnsaved()" 
+        <label for="inpNEnd" style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza Do (h)</label>
+        <input type="number" id="inpNEnd" min="0" max="23" step="1" oninput="markAdvUnsaved(); updateNightFieldsStyle()" onchange="markAdvUnsaved(); updateNightFieldsStyle()"
                style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
       </div>
     </div>

@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.7.3-Versatile NeonAction"
+#define FW_VERSION "[CC]202605.1.7.4-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -335,7 +335,7 @@ void beep(int freq = 2000, int duration = 100, bool isAlarm = false) {
   if (g_masterMute) return;  // Jeśli wyciszono, funkcja nic nie robi
 
   // AUTO NIGHT MUTE: Jeśli nie jest to alarm, a jest "noc" - milcz
-  if (!isAlarm) {
+  if (!isAlarm && g_hNightStart != g_hNightEnd) {
     // Logika dla okresu nocnego (np. 23:00 - 10:00)
     if (g_hNightStart > g_hNightEnd) {
       // Przypadek gdy noc przechodzi przez północ (23 -> 10)
@@ -909,7 +909,15 @@ void WiFiTask(void *pv) {
                     g_alarmDays, g_alarmMelody, (g_masterMute ? 1 : 0));
     out += snprintf(s + out, sizeof(s) - out, "hasBuzzer=%d\n", HAS_BUZZER ? 1 : 0);
     out += snprintf(s + out, sizeof(s) - out, "bzVol=%d\n", g_buzzerVol);
-    bool isNight = (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
+    // Tryb nocny jest aktywny TYLKO jeśli godziny są różne
+    bool isNight = false;
+    if (g_hNightStart != g_hNightEnd) {
+      if (g_hNightStart > g_hNightEnd) {
+        isNight = (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
+      } else {
+        isNight = (g_hour >= g_hNightStart && g_hour < g_hNightEnd);
+      }
+    }
     out += snprintf(s + out, sizeof(s) - out, "night=%d\n", isNight ? 1 : 0);
     out += snprintf(s + out, sizeof(s) - out, "nStart=%d\nnEnd=%d\n", g_hNightStart, g_hNightEnd);
     out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
