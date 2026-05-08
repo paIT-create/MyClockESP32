@@ -170,27 +170,14 @@ button, .day-btn, .switch {
 #tOff {
   -webkit-appearance: none; /* Ukrywa standardowy wygląd */
   width: 100%;
-  height: 6px;
+  height: 8px;
   background: #1a1d26;
   border-radius: 5px;
   outline: none;
   border: 1px solid #333;
-  margin: 15px 0;
+  cursor: pointer;
 }
 /* Styl dla gałki (uchwytu) - Chrome, Safari, Edge, iOS */
-/*
-#tOff::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 28px;               /* Powiększono pod kciuk */
-  height: 28px;              /* Powiększono pod kciuk */
-  background: #ffaa00;       /* Twój złoty kolor */
-  cursor: pointer;
-  border-radius: 50%;
-  box-shadow: 0 0 15px #ffaa00aa, 0 0 5px #000; /* Mocniejszy glow */
-  border: 3px solid #0a0c12; /* Wyraźniejsze odcięcie od paska */
-}
-*/
 #tOff::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -245,7 +232,6 @@ function setAuto() {
       document.getElementById('bright').disabled = (a === 1);
     });
 }
-    
 function save(){
   // ZMIANA: Strzelamy do nowego endpointu /save, który faktycznie robi prefs.put
   fetch('/save').then(r => {
@@ -340,7 +326,6 @@ function loadStatus(){
       if (p.length < 2) return;
       let key = p[0].trim();
       let val = p[1].trim();
-
       // 1a. Mapowanie nazw (Zegar -> Strona WWW)
       const keyToId = {
         "tOff": "tOff",
@@ -352,7 +337,6 @@ function loadStatus(){
         "bzVol": "bzVol",
         "alTime": "alTime"
       };
-
       // 1b. Automatyczne wypełnianie pól formularza
       let targetId = keyToId[key];
       if (targetId) {
@@ -368,7 +352,6 @@ function loadStatus(){
           updateNightFieldsStyle();
         }
       }
-
       // 2. Obsługa parametrów specjalnych (Nagłówek i zmienne pomocnicze)
       if (key === "id") {
         let h = document.getElementById('hdrID');
@@ -380,7 +363,6 @@ function loadStatus(){
         }
       }
       if (key === "ver") document.getElementById('fwVer').textContent = val;
-
       // 3. Obsługa RSSI (Ładna linia + kropki)
       if (key === "rssi") {
         let v = parseInt(val), q, c, d;
@@ -395,7 +377,6 @@ function loadStatus(){
         div.innerHTML = `📶 Sygnał: <span style="color:${c}; font-weight:bold;">${v} dBm</span> (${q})`;
         box.appendChild(div);
       }
-
       // 4. GŁÓWNY SWITCH LOGIKI
       switch (key) {
         case "time":
@@ -506,10 +487,10 @@ function loadStatus(){
           if (!isEditing) {
             document.getElementById('tOff').value = val;
             document.getElementById('tOffDisp').textContent = parseFloat(val).toFixed(1);
+            updateThumbColor(val);
           }
           break;
       }
-
       // 5. WYŚWIETLANIE SUROWYCH DANYCH (Z filtrem)
       const hide = ["id", "rssi", "ver", "nStart", "nEnd", "night", "day"];
       if (!hide.includes(key)) {
@@ -587,19 +568,29 @@ function updateNightFieldsStyle() {
     s.style.color = e.style.color = isDisabled ? "#888" : "#fff";
   }
 }
-function sendTempCorrection(val) {
+function sendTempCorrection() {
+  let slider = document.getElementById('tOff');
+  let v = parseFloat(slider.value);
+  // Krytyczna poprawka dla iOS: jeśli jesteśmy w strefie przyciągania, 
+  // wymuszamy 0 na suwaku ZANIM go odczytamy do wysyłki
+  if (Math.abs(v) < 0.3) {
+    v = 0;
+    slider.value = 0; // To fizycznie ustawia suwak na 0 w przeglądarce
+    document.getElementById('tOffDisp').textContent = "0.0";
+    updateThumbColor(0);
+  }
   // Dla iOS wymuszamy blokadę na wypadek, gdyby oninput nie zaskoczył
   setEdit(true);
   // Wysyłamy nową wartość do ESP
-  fetch(`/set?tOff=${val}`)
+  fetch(`/set?tOff=${v}`)
     .then(() => {
-      console.log("Korekta wysłana: " + val);
+      console.log("Korekta wysłana: " + v);
       // Krótkie wibracje na potwierdzenie wysłania
       if(window.navigator.vibrate) navigator.vibrate([15, 30, 15]);
+      markUnsaved(); // Żeby nie zapomnieć o trwałym zapisie do NVS
       // Po wysłaniu trzymamy blokadę jeszcze przez 2 sekundy, 
       // aby ESP zdążyło zaktualizować status
       setTimeout(() => { setEdit(false); }, 2000);
-      markUnsaved(); // Żeby nie zapomnieć o trwałym zapisie do NVS
     })
     .catch(err => {
       setEdit(false);
@@ -611,17 +602,23 @@ function updateThumbColor(val) {
   let color = "#ffaa00"; // Złoty środek (0.0)
   
   if (v < 0) {
-    // Zimno: Od błękitu do głębokiego niebieskiego
-    let b = Math.round(255 - (Math.abs(v) * 20));
+    // ZIMNO: Głęboki błękit
+    // Zmieniona matematyka, by przy -9.0 uzyskać mocny niebieski
+    let b = Math.round(255 - (Math.abs(v) * 25)); 
+    if (b < 30) b = 30; // Nie pozwalamy, by był zbyt czarny
     color = `rgb(0, ${b}, 255)`;
   } else if (v > 0) {
-    // Ciepło: Od pomarańczu do ciemnej czerwieni
-    let r = Math.round(255 - (v * 15));
-    color = `rgb(255, ${r}, 0)`;
+    // CIEPŁO: Intensywna czerwień
+    let g = Math.round(170 - (v * 18));
+    if (g < 0) g = 0;
+    color = `rgb(255, ${g}, 0)`;
   }
 
-  // Aplikujemy kolor do tekstu
-  document.getElementById('tOffDisp').style.color = color;
+  // Aplikujemy kolory i efekty
+  let disp = document.getElementById('tOffDisp');
+  disp.style.color = color;
+  // Dodajemy mocniejszy glow, gdy jesteśmy na "złotym środku"
+  disp.style.textShadow = (v === 0) ? "0 0 15px #ffaa00" : `0 0 10px ${color}66`;
 
   // TWÓRZYMY STYL DLA GAŁKI (Dla Firefoxa i Chrome/Safari)
   let styleId = "dynamicThumbStyle";
@@ -631,11 +628,10 @@ function updateThumbColor(val) {
     styleEl.id = styleId;
     document.head.appendChild(styleEl);
   }
-  
   // Wpisujemy reguły CSS dla obu typów gałek
   styleEl.innerHTML = `
-    #tOff::-webkit-slider-thumb { background: ${color} !important; box-shadow: 0 0 15px ${color}aa !important; }
-    #tOff::-moz-range-thumb { background: ${color} !important; box-shadow: 0 0 15px ${color}aa !important; }
+    #tOff::-webkit-slider-thumb { background: ${color} !important; box-shadow: 0 0 20px ${color}aa !important; }
+    #tOff::-moz-range-thumb { background: ${color} !important; box-shadow: 0 0 20px ${color}aa !important; }
   `;
 }
 // Uniwersalny "strażnik" edycji dla wszystkich pól
@@ -728,16 +724,14 @@ document.querySelectorAll('input, select').forEach(el => {
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
   <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowane</summary>
   <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
-    <!-- Korekta Temp
-    <label for="tOff" style="font-size:13px; display:block;">🌡️ Korekta Temp (°C)</label>
-    <input type="number" id="tOff" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()" step="0.1"
-           style="width:70px; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin-top:5px; margin-bottom:10px; border-radius:6px; display:block;">
-    -->
-    <label for="tOff" style="font-size:14px; display:block; color:#888;">🌡️ Korekta Temp: <span id="tOffDisp" style="color:#ffaa00; text-shadow:0 0 8px #ffaa0066; font-weight:bold;">--.-</span>°C</label>
-    <input type="range" id="tOff" min="-9.0" max="9.0" step="0.1"
-          oninput="setEdit(true); document.getElementById('tOffDisp').textContent=this.value; updateThumbColor(this.value); if(window.navigator.vibrate)navigator.vibrate(10);"
-          onchange="sendTempCorrection(this.value)"
-          style="width:100%; margin-top:8px; margin-bottom:15px;">
+    <!-- Korekta Temp -->
+    <label for="tOff" style="font-size:14px; display:block; color:#888; margin-bottom:10px;">🌡️ Korekta Temp: <span id="tOffDisp" style="font-size:22px; font-weight:bold; margin-left:5px;">--.-</span>°C</label>
+    <div style="padding: 15px 0; margin-bottom: 10px;"> <!-- Kontener dający oddech -->
+      <input type="range" id="tOff" min="-9.0" max="9.0" step="0.1"
+            oninput="setEdit(true); document.getElementById('tOffDisp').textContent=parseFloat(this.value).toFixed(1); updateThumbColor(this.value); if(window.navigator.vibrate)navigator.vibrate(10);"
+            onchange="sendTempCorrection()"
+            style="width:100%; margin:0;">
+    </div>
     <!-- LDR Live View -->
     <div style="margin-bottom:15px; padding:10px; background: #1a1d26; border-radius: 8px; text-align: center; border: 1px solid #0070ff22;">
       <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
@@ -746,27 +740,27 @@ document.querySelectorAll('input, select').forEach(el => {
     <!-- LDR Dark i Bright -->
     <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label for="rDark" style="font-size:11px; color:#666; display:block;">🕯️ LDR Dark (Ciemno)</label>
+        <label for="rDark" style="font-size:11px; color:#666; display:block; text-align: center;">🕯️ LDR Dark (Ciemno)</label>
         <input type="number" id="rDark" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()"
-               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px; text-align: center;">
       </div>
       <div style="flex:1;">
-        <label for="rBright" style="font-size:11px; color:#666; display:block;">💡 LDR Bright (Jasno)</label>
+        <label for="rBright" style="font-size:11px; color:#666; display:block; text-align: center;">💡 LDR Bright (Jasno)</label>
         <input type="number" id="rBright" oninput="markAdvUnsaved()" onchange="markAdvUnsaved()"
-               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px;">
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin-top:5px; border-radius:6px; text-align: center;">
       </div>
     </div>
     <!-- Godziny Nocne -->
     <div style="display:flex; justify-content:space-between; gap:15px; margin-bottom:10px;">
       <div style="flex:1;">
-        <label for="inpNStart" style="font-size:11px; color:#ffaa00; display:block;">🌙 Cisza Od (h)</label>
+        <label for="inpNStart" style="font-size:11px; color:#ffaa00; display:block; text-align: center;">🌙 Tryb nocny Od (h)</label>
         <input type="number" id="inpNStart" min="0" max="23" step="1" oninput="markAdvUnsaved(); updateNightFieldsStyle()" onchange="markAdvUnsaved(); updateNightFieldsStyle()"
-               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px; text-align: center;">
       </div>
       <div style="flex:1;">
-        <label for="inpNEnd" style="font-size:11px; color:#ffaa00; display:block;">☀️ Cisza Do (h)</label>
+        <label for="inpNEnd" style="font-size:11px; color:#ffaa00; display:block; text-align: center;"> ... Do (h) ☀️</label>
         <input type="number" id="inpNEnd" min="0" max="23" step="1" oninput="markAdvUnsaved(); updateNightFieldsStyle()" onchange="markAdvUnsaved(); updateNightFieldsStyle()"
-               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px;">
+               style="width:100%; box-sizing:border-box; background:#05060a; color:#fff; border:1px solid #444; padding:8px; margin-top:5px; border-radius:6px; text-align: center;">
       </div>
     </div>
     <button id="advBtn" class="btn save" style="width:100%; padding:10px; font-size:14px; margin-top:10px;" onclick="applyAdv()">⚡ Zastosuj zmiany</button>

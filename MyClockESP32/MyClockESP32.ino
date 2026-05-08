@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.7.5-Versatile NeonAction"
+#define FW_VERSION "[CC/CA]202605.1.7.6-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -138,7 +138,6 @@ volatile bool g_otaActive = false;
 Preferences prefs;
 volatile bool g_autoBrightness = true;
 volatile uint8_t g_brightness = 128;    // 0..255 logical brightness
-volatile bool g_hardwareReady = false;  // flaga niewykorzystywane w tej wersji
 // Kalibracja czujnika LDR - wartości "fabryczne" dla obudowy typu WOOD, możliowość korekty w WebUI
 int g_rawDark = 3900;
 int g_rawBright = 900;
@@ -362,10 +361,6 @@ static const int PWM_CH = 0;
 static const int PWM_FREQ = 20000;  // 20 kHz
 static const int PWM_RES = 8;       // 0..255
 // OE is active LOW: duty=0 -> full ON, duty=255 -> off
-// static inline void applyBrightness(uint8_t logical) {
-//   uint8_t oeDuty = 255 - logical;
-//   ledcWrite(PWM_CH, oeDuty);
-// }
 void applyBrightness(uint8_t logical) {
   uint8_t oeDuty = 255 - logical;
   ledcWrite(PWM_CH, oeDuty);
@@ -903,12 +898,14 @@ void WiFiTask(void *pv) {
                     g_rawDark, g_rawBright, rawLDR, g_brightness, (g_autoBrightness ? 1 : 0));
 
     // Blok 4: Budzik
+    out += snprintf(s + out, sizeof(s) - out, "hasBuzzer=%d\n", HAS_BUZZER ? 1 : 0);
+    out += snprintf(s + out, sizeof(s) - out, "bzVol=%d\n", g_buzzerVol);
     out += snprintf(s + out, sizeof(s) - out, "isAlarming=%d\nalTime=%02d:%02d\nalActive=%d\n",
                     (g_isAlarming ? 1 : 0), g_alarmH, g_alarmM, (g_alarmActive ? 1 : 0));
     out += snprintf(s + out, sizeof(s) - out, "alDays=%d\nalMel=%d\nmMute=%d\n",
                     g_alarmDays, g_alarmMelody, (g_masterMute ? 1 : 0));
-    out += snprintf(s + out, sizeof(s) - out, "hasBuzzer=%d\n", HAS_BUZZER ? 1 : 0);
-    out += snprintf(s + out, sizeof(s) - out, "bzVol=%d\n", g_buzzerVol);
+    out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
+    
     // Tryb nocny jest aktywny TYLKO jeśli godziny są różne
     bool isNight = false;
     if (g_hNightStart != g_hNightEnd) {
@@ -920,7 +917,6 @@ void WiFiTask(void *pv) {
     }
     out += snprintf(s + out, sizeof(s) - out, "night=%d\n", isNight ? 1 : 0);
     out += snprintf(s + out, sizeof(s) - out, "nStart=%d\nnEnd=%d\n", g_hNightStart, g_hNightEnd);
-    out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
 
     // Blok 5: Sieć
     out += snprintf(s + out, sizeof(s) - out, "wifi=%s\n", (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
@@ -961,7 +957,6 @@ void WiFiTask(void *pv) {
     server.sendContent("");  // Zakończ transmisję
   });
 
-  // /set endpoint
   // --- ZMIENIONY ENDPOINT /set ---
   server.on("/set", []() {
     if (server.hasArg("bright")) {
@@ -1097,8 +1092,6 @@ void initBrightnessHardware() {
   analogReadResolution(12);
 
   applyBrightness(g_brightness);
-  // flaga niewykorzystywana w tej wersji
-  g_hardwareReady = true;  // <--- TUTAJ odblokowujemy sterowanie jasnością
 }
 // -----------------------------------------------------------------------------
 // setup / loop
@@ -1111,12 +1104,12 @@ void setup() {
 
   WiFi.setAutoReconnect(false);  // true: Pozwól ESP32 dbać o połączenie - koliduje z AC ; false: nie przeszkadza AutoConnect
   WiFi.persistent(false);        // NIE zapisuj danych WiFi przy każdym połączeniu (oszczędza Flash)
-
-  // Skrócenie czasu między odpytaniami SNTP (DLA TESTÓW)
-  // Domyślnie jest są to 3 godziny ! - zweryfikowane doświadczalnie (3x3600000 ms = 10 800 000 ms).
-  // Ustawiamy np. na 20 sekund (20000 ms), aby szybko zobaczyć efekty.
-  // UWAGA: Minimalny zalecany czas dla serwerów publicznych to 15s.
-
+  /*
+  Skrócenie czasu między odpytaniami SNTP (DLA TESTÓW)
+   Domyślnie są to 3 godziny ! - zweryfikowane doświadczalnie (3x3600000 ms = 10 800 000 ms).
+   Ustawiamy np. na 20 sekund (20000 ms), aby szybko zobaczyć efekty.
+   UWAGA: Minimalny zalecany czas dla serwerów publicznych to 15s.
+  */
   // sntp_set_sync_interval(60000); // 1 minuta TYLKO DLA TESTÓW
 
   // Rejestracja powiadomienia (musi być przed configTzTime)
