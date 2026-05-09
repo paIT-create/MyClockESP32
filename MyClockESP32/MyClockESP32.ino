@@ -405,11 +405,11 @@ uint8_t computeAutoBrightnessFromLDR() {
   if (x < 0) x = 0;
   if (x > 1) x = 1;
 
-  // Domyślny zakres jasności od 2 do 250
-  int B_MIN = 2;
+  // Domyślny zakres jasności od 3 do 250
+  int B_MIN = 3;
   int B_MAX = 250;
   // Zakres 0 - 250 dla wygaszenia LED w nocy
-  if (g_nightLedOff && isItNightRightNow()) {
+  if (g_nightLedOff && isItNightRightNow() && !g_isAlarming) {
     B_MIN = 0;
     B_MAX = 250;
   }
