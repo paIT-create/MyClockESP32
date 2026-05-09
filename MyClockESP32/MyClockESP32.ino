@@ -43,7 +43,7 @@
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
 
-#define FW_VERSION "[CC/CA]202605.1.7.6-Versatile NeonAction"
+#define FW_VERSION "[CC/CA]202605.1.7.7-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -137,10 +137,11 @@ volatile bool g_otaActive = false;
 // Brightness
 Preferences prefs;
 volatile bool g_autoBrightness = true;
-volatile uint8_t g_brightness = 128;    // 0..255 logical brightness
+volatile uint8_t g_brightness = 128;  // 0..255 logical brightness
 // Kalibracja czujnika LDR - wartości "fabryczne" dla obudowy typu WOOD, możliowość korekty w WebUI
 int g_rawDark = 3900;
 int g_rawBright = 900;
+bool g_nightLedOff = false;  // Flaga z WebUI dla wygaszenia LED (B_MIN=0 dla OE PWM)
 
 // WiFi / portal / DNS
 WebServer server(80);
@@ -169,6 +170,14 @@ uint8_t g_alarmDays = 127;                // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 
 volatile bool g_isAlarming = false;       // Flaga, czy budzik aktualnie gra
 int g_hNightStart = 23, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
 
+bool isItNightRightNow() {
+  if (g_hNightStart == g_hNightEnd) return false;  // Wyłączone
+  if (g_hNightStart > g_hNightEnd) {
+    return (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
+  } else {
+    return (g_hour >= g_hNightStart && g_hour < g_hNightEnd);
+  }
+}
 // -----------------------------------------------------------------------------
 // 74HC595 helpers
 // -----------------------------------------------------------------------------
@@ -323,8 +332,8 @@ int getDS18B20Resolution() {
 // BUZZER control
 // -----------------------------------------------------------------------------
 void initBuzzer() {
-  // Jasność używa kanału 0. Spróbujmy użyć kanału 2,
-  // który na pewno należy do innego "bloku" (Timer 1)
+  // Jasność używa kanału 0. Dla buzzera używam kanału 2,
+  // który należy do innego "bloku" (Timer 1)
   ledcSetup(2, 2000, 8);
   ledcAttachPin(PIN_BUZZER, 2);
   ledcWrite(2, 0);
@@ -396,10 +405,16 @@ uint8_t computeAutoBrightnessFromLDR() {
   if (x < 0) x = 0;
   if (x > 1) x = 1;
 
-  const int B_MIN = 5;
-  const int B_MAX = 250;
+  // Domyślny zakres jasności od 2 do 250
+  int B_MIN = 2;
+  int B_MAX = 250;
+  // Zakres 0 - 250 dla wygaszenia LED w nocy
+  if (g_nightLedOff && isItNightRightNow()) {
+    B_MIN = 0;
+    B_MAX = 250;
+  }
 
-  int out = (int)(B_MIN + x * (B_MAX - B_MIN));  // Zakres od 5 do 250
+  int out = (int)(B_MIN + x * (B_MAX - B_MIN));
 
   // uncomment for measurements
   //Serial.printf("LDR raw=%d  ema=%.1f  norm=%.2f  brightness=%d\n", raw, ema, x, out);
@@ -418,7 +433,8 @@ void BrightnessTask(void *pv) {
       g_brightness = target;
     }
 
-    if (abs((int)target - (int)lastApplied) >= 2) {
+    // Aplikujemy zmianę (z poprawką na zero i automatykę przy LED Off w nocy)
+    if (abs((int)target - (int)lastApplied) >= 2 || (target == 0 && lastApplied != 0) || (target != 0 && lastApplied == 0)) {
       applyBrightness(target);
       lastApplied = target;
     }
@@ -434,7 +450,7 @@ void TimeTask(void *pv) {
   int lastSec = -1;
 
   for (;;) {
-    // Sprawdzamy czas rzadziej (co 100ms), co oszczędza energię i CPU
+    // Sprawdzamy czas rzadziej, co oszczędza energię i CPU (vTaskDelay(pdMS_TO_TICKS(50));)
     if (getLocalTime(&ti, 0)) {  // 0 oznacza: sprawdź co masz w pamięci, nie czekaj (pierwotnie było 50)
       if (ti.tm_sec != lastSec) {
         lastSec = ti.tm_sec;
@@ -472,7 +488,7 @@ void TempTask(void *pv) {
 
     float t = NAN;
     int retryCount = 0;
-    const int maxRetries = 3;
+    const int maxRetries = 5;
 
     while (retryCount < maxRetries) {
       t = sensors.getTempCByIndex(0);
@@ -665,6 +681,7 @@ void saveSettings() {
   prefs.putBool("hChime", g_hourlyChime);
   prefs.putInt("hNStart", g_hNightStart);
   prefs.putInt("hNEnd", g_hNightEnd);
+  prefs.putBool("nLedOff", g_nightLedOff);
   prefs.end();
 
   beep(1200, 50);
@@ -688,6 +705,7 @@ void resetSettings() {
   const bool DEFAULT_H_CHIME = true;
   const int DEFAULT_NIGHT_START = 22;
   const int DEFAULT_NIGHT_END = 6;
+  const bool DEFAULT_NIGHT_LED_OFF = false;
 
   prefs.begin("clock", false);
   prefs.putUChar("bright", DEFAULT_BRIGHT);
@@ -705,6 +723,7 @@ void resetSettings() {
   prefs.putBool("hChime", DEFAULT_H_CHIME);
   prefs.putInt("hNStart", DEFAULT_NIGHT_START);
   prefs.putInt("hNEnd", DEFAULT_NIGHT_END);
+  prefs.putBool("nLedOff", DEFAULT_NIGHT_LED_OFF);
   prefs.end();
 
   g_brightness = DEFAULT_BRIGHT;
@@ -722,6 +741,7 @@ void resetSettings() {
   g_hourlyChime = DEFAULT_H_CHIME;
   g_hNightStart = DEFAULT_NIGHT_START;
   g_hNightEnd = DEFAULT_NIGHT_END;
+  g_nightLedOff = DEFAULT_NIGHT_LED_OFF;
 
   beep(1200, 50);
   vTaskDelay(pdMS_TO_TICKS(50));
@@ -745,6 +765,7 @@ void loadSettings() {
   g_hourlyChime = prefs.getBool("hChime", true);
   g_hNightStart = prefs.getInt("hNStart", 22);
   g_hNightEnd = prefs.getInt("hNEnd", 6);
+  g_nightLedOff = prefs.getBool("nLedOff", false);
   prefs.end();
 }
 
@@ -905,18 +926,12 @@ void WiFiTask(void *pv) {
     out += snprintf(s + out, sizeof(s) - out, "alDays=%d\nalMel=%d\nmMute=%d\n",
                     g_alarmDays, g_alarmMelody, (g_masterMute ? 1 : 0));
     out += snprintf(s + out, sizeof(s) - out, "hChime=%d\n", (g_hourlyChime ? 1 : 0));
-    
+
     // Tryb nocny jest aktywny TYLKO jeśli godziny są różne
-    bool isNight = false;
-    if (g_hNightStart != g_hNightEnd) {
-      if (g_hNightStart > g_hNightEnd) {
-        isNight = (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
-      } else {
-        isNight = (g_hour >= g_hNightStart && g_hour < g_hNightEnd);
-      }
-    }
+    bool isNight = isItNightRightNow();
     out += snprintf(s + out, sizeof(s) - out, "night=%d\n", isNight ? 1 : 0);
     out += snprintf(s + out, sizeof(s) - out, "nStart=%d\nnEnd=%d\n", g_hNightStart, g_hNightEnd);
+    out += snprintf(s + out, sizeof(s) - out, "nLedOff=%d\n", g_nightLedOff ? 1 : 0);
 
     // Blok 5: Sieć
     out += snprintf(s + out, sizeof(s) - out, "wifi=%s\n", (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
@@ -998,13 +1013,17 @@ void WiFiTask(void *pv) {
       beep(2000, 30);  // Krótkie piknięcie jako podgląd głośności przy przesuwaniu suwaka
     }
 
+    if (server.hasArg("nLedOff")) {
+      g_nightLedOff = (server.arg("nLedOff") == "1");
+    }
+
     server.send(200, "text/plain", "OK");
   });
 
   // --- NOWY ENDPOINT /save ---
   server.on("/save", []() {
     saveSettings();  // Zapisuje do Flash tylko po kliknięciu "Zapisz"
-    server.send(200, "text/plain", "Zapisano");
+    server.send(200, "text/plain", "Zapisano !");
   });
 
   // /reset endpoint

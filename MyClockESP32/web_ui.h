@@ -490,6 +490,9 @@ function loadStatus(){
             updateThumbColor(val);
           }
           break;
+        case "nLedOff":
+          document.getElementById('nLedOff').checked = (val === "1");
+          break;
       }
       // 5. WYŚWIETLANIE SUROWYCH DANYCH (Z filtrem)
       const hide = ["id", "rssi", "ver", "nStart", "nEnd", "night", "day"];
@@ -639,6 +642,10 @@ document.querySelectorAll('input, select').forEach(el => {
   el.addEventListener('focus', () => isEditing = true);
   el.addEventListener('blur', () => isEditing = false);
 });
+function updateNightLed() {
+  let val = document.getElementById('nLedOff').checked ? 1 : 0;
+  fetch(`/set?nLedOff=${val}`);
+}
 </script>
 </head>
 <body>
@@ -711,11 +718,19 @@ document.querySelectorAll('input, select').forEach(el => {
 </div>
 <!-- SYMETRYCZNA LINIA ODDZIELAJĄCA -->
 <div style="margin: 25px 0; border-top: 1px solid #333;"></div>
-<div style="display:flex; justify-content:space-between; align-items:center;">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
   <label for="bright" style="margin:0;">🔆 Jasność</label>
-  <div style="display:flex; align-items:center; gap:8px;">
-    <input type="checkbox" id="auto" onchange="setAuto(); markUnsaved()" style="margin:0; cursor:pointer;">
-    <label for="auto" style="margin:0; font-size:14px; color:#9fc9ff; text-shadow:0 0 6px #0044aa; cursor:pointer;">Auto</label>
+  <div style="display:flex; align-items:center; gap:15px;">
+    <!-- Checkbox: Wygaszanie LED -->
+    <div style="display:flex; align-items:center; gap:5px;">
+      <input type="checkbox" id="nLedOff" onchange="updateNightLed(); markUnsaved()" style="margin:0; cursor:pointer;">
+      <label for="nLedOff" style="margin:0; font-size:12px; color:#ffaa00; text-shadow:0 0 6px #ffaa0066; cursor:pointer;">🌙 WYŁ. </label>
+    </div>
+    <!-- Checkbox: Auto Jasność -->
+    <div style="display:flex; align-items:center; gap:5px;">
+      <input type="checkbox" id="auto" onchange="setAuto(); markUnsaved()" style="margin:0; cursor:pointer;">
+      <label for="auto" style="margin:0; font-size:14px; color:#9fc9ff; text-shadow:0 0 6px #0044aa; cursor:pointer;">Auto</label>
+    </div>
   </div>
 </div>
 <input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
