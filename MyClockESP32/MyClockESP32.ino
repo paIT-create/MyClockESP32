@@ -1211,6 +1211,7 @@ void setup() {
   */
   // sntp_set_sync_interval(60000); // 1 minuta TYLKO DLA TESTÓW
   // sntp_set_sync_interval(3600000);  // 1 godzina
+  sntp_set_sync_interval(5400000);  // 1,5 godziny
 
   // Rejestracja powiadomienia (musi być przed configTzTime)
   sntp_set_time_sync_notification_cb(timeSyncCallback);
