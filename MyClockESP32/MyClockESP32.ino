@@ -42,8 +42,10 @@
 
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
-
-#define FW_VERSION "[CC/CA]202605.1.7.7-Versatile NeonAction"
+// -----------------------------------------------------------------------------
+//                 --- KONFIGURACJA WERSJI HARDWARE ---
+// -----------------------------------------------------------------------------
+#define FW_VERSION "[CC/CA]202605.1.7.8-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -406,7 +408,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   if (x > 1) x = 1;
 
   // Domyślny zakres jasności od 3 do 250
-  int B_MIN = 3;
+  int B_MIN = 5;
   int B_MAX = 250;
   // Zakres 0 - 250 dla wygaszenia LED w nocy
   if (g_nightLedOff && isItNightRightNow() && !g_isAlarming) {
@@ -445,38 +447,116 @@ void BrightnessTask(void *pv) {
 // -----------------------------------------------------------------------------
 // TimeTask
 // -----------------------------------------------------------------------------
+// void TimeTask(void *pv) {
+//   struct tm ti;
+//   int lastSec = -1;
+
+//   for (;;) {
+//     // Sprawdzamy czas rzadziej, co oszczędza energię i CPU (vTaskDelay(pdMS_TO_TICKS(50));)
+//     if (getLocalTime(&ti, 0)) {  // 0 oznacza: sprawdź co masz w pamięci, nie czekaj (pierwotnie było 50)
+//       if (ti.tm_sec != lastSec) {
+//         lastSec = ti.tm_sec;
+//         g_hour = ti.tm_hour;
+//         g_minute = ti.tm_min;
+//         g_second = ti.tm_sec;
+//         g_timeValid = true;
+//         // Beep o pełnej godzinie (Casio style)
+//         if (g_minute == 0 && g_second == 0 && g_hourlyChime) {
+//           beep(4000, 50);
+//           vTaskDelay(pdMS_TO_TICKS(50));
+//           beep(4000, 50);
+//         }
+//         // --- KLUCZ DO SYNCHRONIZACJI 20250506 v1.6.6 ---
+//         // Obliczamy ile milisekund zostało do końca OBECNEJ sekundy
+//         struct timeval tv;
+//         gettimeofday(&tv, NULL);
+//         int ms_to_wait = 1000 - (tv.tv_usec / 1000);
+//         // Zasypiamy dokładnie do początku nowej sekundy (+ mały margines 10ms)
+//         vTaskDelay(pdMS_TO_TICKS(ms_to_wait + 10));
+//       }
+//     }
+//     // 100ms to złoty środek dla zegara; 20250506 v1.6.6 zmiana ze 100 na 50ms dla lepszej synchronizacji
+//     vTaskDelay(pdMS_TO_TICKS(50));  // Krótka przerwa jeśli nie było zmiany
+//   }
+// }
+
+// v2
+// void TimeTask(void *pv) {
+//   struct timeval tv;
+//   long lastLoggedSec = -1;
+
+//   for (;;) {
+//     gettimeofday(&tv, NULL);
+
+//     // Jeśli sekunda systemowa się zmieniła
+//     if (tv.tv_sec != lastLoggedSec) {
+//       lastLoggedSec = tv.tv_sec;
+
+//       // Pobieramy pełną strukturę czasu tylko raz na sekundę
+//       struct tm ti;
+//       if (getLocalTime(&ti, 0)) {
+//         g_hour = ti.tm_hour;
+//         g_minute = ti.tm_min;
+//         g_second = ti.tm_sec;
+//         g_timeValid = true;
+
+//         // Beep o pełnej godzinie (Casio style)
+//         if (g_minute == 0 && g_second == 0 && g_hourlyChime) {
+//           beep(4000, 50);
+//           vTaskDelay(pdMS_TO_TICKS(50));
+//           beep(4000, 50);
+//         }
+//       }
+//     }
+
+//     // KLUCZ: Nie zasypiamy na całą sekundę!
+//     // Sprawdzamy stan mikrosekund co 20ms, aby "trafić" w moment zmiany sekundy
+//     // z dokładnością do 2% mrugnięcia oka. To eliminuje lag WiFi.
+//     vTaskDelay(pdMS_TO_TICKS(20));
+//   }
+// }
+
+// v3
 void TimeTask(void *pv) {
   struct tm ti;
-  int lastSec = -1;
+  struct timeval tv;
+  long lastLoggedSec = -1;
 
   for (;;) {
-    // Sprawdzamy czas rzadziej, co oszczędza energię i CPU (vTaskDelay(pdMS_TO_TICKS(50));)
-    if (getLocalTime(&ti, 0)) {  // 0 oznacza: sprawdź co masz w pamięci, nie czekaj (pierwotnie było 50)
-      if (ti.tm_sec != lastSec) {
-        lastSec = ti.tm_sec;
+    gettimeofday(&tv, NULL);
+
+    if (tv.tv_sec != lastLoggedSec) {
+      lastLoggedSec = tv.tv_sec;
+      if (getLocalTime(&ti, 0)) {
         g_hour = ti.tm_hour;
         g_minute = ti.tm_min;
         g_second = ti.tm_sec;
         g_timeValid = true;
+
         // Beep o pełnej godzinie (Casio style)
         if (g_minute == 0 && g_second == 0 && g_hourlyChime) {
           beep(4000, 50);
           vTaskDelay(pdMS_TO_TICKS(50));
           beep(4000, 50);
         }
-        // --- KLUCZ DO SYNCHRONIZACJI 20250506 v1.6.6 ---
-        // Obliczamy ile milisekund zostało do końca OBECNEJ sekundy
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        int ms_to_wait = 1000 - (tv.tv_usec / 1000);
-        // Zasypiamy dokładnie do początku nowej sekundy (+ mały margines 10ms)
-        vTaskDelay(pdMS_TO_TICKS(ms_to_wait + 10));
       }
     }
-    // 100ms to złoty środek dla zegara; 20250506 v1.6.6 zmiana ze 100 na 50ms dla lepszej synchronizacji
-    vTaskDelay(pdMS_TO_TICKS(50));  // Krótka przerwa jeśli nie było zmiany
+
+    // OBLICZAMY ILE ZOSTAŁO DO KOŃCA SEKUNDY (w milisekundach)
+    int ms_to_next = 1000 - (tv.tv_usec / 1000);
+
+    if (ms_to_next > 150) {
+      // Jeśli do zmiany sekundy zostało DUŻO czasu (więcej niż 150ms),
+      // śpij długo i oszczędzaj CPU.
+      vTaskDelay(pdMS_TO_TICKS(100));
+    } else {
+      // Jeśli jesteśmy już blisko (ostatnie 150ms),
+      // sprawdzaj bardzo gęsto (co 10ms), aby trafić idealnie w punkt!
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
   }
 }
+
 // -----------------------------------------------------------------------------
 // TempTask
 // -----------------------------------------------------------------------------
@@ -1130,6 +1210,7 @@ void setup() {
    UWAGA: Minimalny zalecany czas dla serwerów publicznych to 15s.
   */
   // sntp_set_sync_interval(60000); // 1 minuta TYLKO DLA TESTÓW
+  // sntp_set_sync_interval(3600000);  // 1 godzina
 
   // Rejestracja powiadomienia (musi być przed configTzTime)
   sntp_set_time_sync_notification_cb(timeSyncCallback);
@@ -1164,7 +1245,7 @@ void setup() {
   xTaskCreate(AlarmTask, "Alarm", 2048, NULL, 1, NULL);
 #endif
 
-  xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
+  xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 3, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
