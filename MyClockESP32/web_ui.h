@@ -1,4 +1,4 @@
-// --- KOD HTML W PAMIĘCI FLASH ---
+// --- KOD HTML W PAMIĘCI FLASH ----
 const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>

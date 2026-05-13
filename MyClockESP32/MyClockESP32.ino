@@ -315,13 +315,13 @@ void setDisplayTemp(float tC) {
   commitDisplayBuffer();
 }
 
-void setDisplayDashes() {
-  g_displayNext[0] = FONT_MINUS;
-  g_displayNext[1] = FONT_MINUS;
-  g_displayNext[2] = FONT_MINUS;
-  g_displayNext[3] = FONT_MINUS;
-  commitDisplayBuffer();
-}
+// void setDisplayDashes() {
+//   g_displayNext[0] = FONT_MINUS;
+//   g_displayNext[1] = FONT_MINUS;
+//   g_displayNext[2] = FONT_MINUS;
+//   g_displayNext[3] = FONT_MINUS;
+//   commitDisplayBuffer();
+// }
 
 int getDS18B20Resolution() {
   DeviceAddress addr;
@@ -411,7 +411,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   int B_MIN = 5;
   int B_MAX = 250;
   // Zakres 0 - 250 dla wygaszenia LED w nocy
-  if (g_nightLedOff && isItNightRightNow() && !g_isAlarming) {
+  if (g_nightLedOff && g_timeValid && isItNightRightNow() && !g_isAlarming) {
     B_MIN = 0;
     B_MAX = 250;
   }
@@ -544,6 +544,11 @@ void TimeTask(void *pv) {
 
     // OBLICZAMY ILE ZOSTAŁO DO KOŃCA SEKUNDY (w milisekundach)
     int ms_to_next = 1000 - (tv.tv_usec / 1000);
+    // BEZPIECZNIK: Jeśli przez lag sieciowy ms_to_next ma dziwną wartość,
+    // lub jest mniejszy od zera, resetujemy go do bezpiecznego kroku 100ms
+    if (ms_to_next < 0 || ms_to_next > 1000) {
+      ms_to_next = 100;
+    }
 
     if (ms_to_next > 150) {
       // Jeśli do zmiany sekundy zostało DUŻO czasu (więcej niż 150ms),
