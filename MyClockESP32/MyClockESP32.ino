@@ -173,6 +173,7 @@ volatile bool g_isAlarming = false;       // Flaga, czy budzik aktualnie gra
 int g_hNightStart = 23, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
 
 bool isItNightRightNow() {
+  if (!g_timeValid) return false;
   if (g_hNightStart == g_hNightEnd) return false;  // Wyłączone
   if (g_hNightStart > g_hNightEnd) {
     return (g_hour >= g_hNightStart || g_hour < g_hNightEnd);
@@ -411,7 +412,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   int B_MIN = 5;
   int B_MAX = 250;
   // Zakres 0 - 250 dla wygaszenia LED w nocy
-  if (g_nightLedOff && g_timeValid && isItNightRightNow() && !g_isAlarming) {
+  if (g_nightLedOff && isItNightRightNow() && !g_isAlarming) {
     B_MIN = 0;
     B_MAX = 250;
   }
