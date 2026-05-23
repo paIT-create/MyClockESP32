@@ -45,7 +45,7 @@
 // -----------------------------------------------------------------------------
 //                 --- KONFIGURACJA WERSJI HARDWARE ---
 // -----------------------------------------------------------------------------
-#define FW_VERSION "[CC/CA]202605.1.7.8-Versatile NeonAction"
+#define FW_VERSION "[CC/CA]202605.1.7.9-Versatile NeonAction"
 // --- KONFIGURACJA SPRZĘTOWA ---
 #define DISPLAY_COMMON_CATHODE true  // Zmień na false dla wersji CA (PNP)
 #define HAS_BUZZER true              // Zmień na false dla wersji bez głośnika (false wyłącza sekcję Budzika i dźwięków w WebUI)
@@ -1252,7 +1252,7 @@ void setup() {
   xTaskCreate(AlarmTask, "Alarm", 2048, NULL, 1, NULL);
 #endif
 
-  xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 3, nullptr, 1);
+  xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
