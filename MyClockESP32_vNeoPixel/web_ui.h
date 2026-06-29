@@ -717,6 +717,17 @@ function sendRGBHex(param, hexValue) {
   var encodedHex = encodeURIComponent(hexValue);
   fetch('/set?' + param + '=' + encodedHex);
 }
+function toggleRGBCard() {
+  let content = document.getElementById("rgb-content");
+  let arrow = document.getElementById("rgb-arrow");
+  if (content.style.display === "none") {
+    content.style.display = "block";
+    arrow.textContent = "▲";
+  } else {
+    content.style.display = "none";
+    arrow.textContent = "▼";
+  }
+}
 </script>
 </head>
 <body>
@@ -807,47 +818,54 @@ function sendRGBHex(param, hexValue) {
 <input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
 <div class="value" id="brightVal">Aktualnie: --</div>
 <!-- KARTA STEROWANIA KOLORAMI RGB (Tylko dla wersji NeoPixel) -->
-<div class="card" id="rgb-card" style="display:none;">
-  <h2>🎨 Efekty RGB</h2>
+<div class="card" id="rgb-card" style="display:none; padding: 10px 15px;">
+  <!-- Zoptymalizowany pod kątem mniejszych marginesów i mniejszej czcionki nagłówek -->
+  <h2 onclick="toggleRGBCard()" style="cursor:pointer; user-select:none; font-size:1.15em; margin: 4px 0; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+    <span>🎨 Ustawienia RGB</span>
+    <span id="rgb-arrow" style="font-size:0.75em; opacity: 0.8;">▼</span>
+  </h2>
   
-  <div class="form-group">
-    <label for="fx-select">Tryb pracy paska LED:</label>
-    <select id="fx-select" onchange="sendRGBParam('effect', this.value)">
-      <option value="0">🪄Stałe kolory (Multi-Color)</option>
-      <option value="1">🪄Tęczowe sekundy (Rainbow Sec)</option>
-      <option value="2">🪄Pełna tęcza przestrzenna (Spatial Wave)</option>
-    </select>
-  </div>
-
-  <div id="static-colors-grp">
-    <div class="form-group row-color">
-      <label><span class="dot-color" style="background:#ff6400;"></span> Godziny i Minuty:</label>
-      <input type="color" id="picker-hm" oninput="sendRGBHex('hcolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
-    </div>
-    
-    <div class="form-group row-color" id="row-sec">
-      <label><span class="dot-color" style="background:#ff2800;"></span> Sekundy:</label>
-      <input type="color" id="picker-sec" oninput="sendRGBHex('scolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
-    </div>
-    
-    <div class="form-group row-color" id="row-colon">
-      <label><span class="dot-color" style="background:#ff0000;"></span> Dwukropki:</label>
-      <input type="color" id="picker-colon" oninput="sendRGBHex('ccolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+  <!-- Kontener zawartości karty - domyślnie ukryty -->
+  <div id="rgb-content" style="display:none; margin-top:10px;">
+    <div class="form-group">
+      <label for="fx-select">Tryb pracy paska LED:</label>
+      <select id="fx-select" onchange="sendRGBParam('effect', this.value)" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+        <option value="0">📌 Stałe kolory (Multi-Color)</option>
+        <option value="1">👉 Tęczowe sekundy (Rainbow Sec)</option>
+        <option value="2">🌈 Pełna tęcza przestrzenna (Spatial Wave)</option>
+      </select>
     </div>
 
-    <div class="form-group row-color">
-        <label>Auto kolor temperatury:</label>
-        <input type="checkbox" id="chk-tauto" onchange="sendRGBParam('tAuto', this.checked ? '1' : '0')">
-    </div>
-    
-    <div class="form-group row-color">
-      <label><span class="dot-color" style="background:#00b4ff;"></span> Termo-indykacja (Baza):</label>
-      <input type="color" id="picker-temp" oninput="sendRGBHex('tcolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
-    </div>
-    
-    <div class="form-group row-color">
-      <label><span class="dot-color" style="background:#000032;"></span> Ambient Light:</label>
-      <input type="color" id="picker-ambient" oninput="sendRGBHex('acolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+    <div id="static-colors-grp">
+      <div class="form-group row-color">
+        <label><span class="dot-color" style="background:#ff6400;"></span> Godziny i Minuty:</label>
+        <input type="color" id="picker-hm" oninput="sendRGBHex('hcolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+      </div>
+      
+      <div class="form-group row-color" id="row-sec">
+        <label><span class="dot-color" style="background:#ff2800;"></span> Sekundy:</label>
+        <input type="color" id="picker-sec" oninput="sendRGBHex('scolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+      </div>
+      
+      <div class="form-group row-color" id="row-colon">
+        <label><span class="dot-color" style="background:#ff0000;"></span> Dwukropki:</label>
+        <input type="color" id="picker-colon" oninput="sendRGBHex('ccolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+      </div>
+
+      <div class="form-group row-color">
+          <label>Auto kolor temperatury:</label>
+          <input type="checkbox" id="chk-tauto" onchange="sendRGBParam('tAuto', this.checked ? '1' : '0')">
+      </div>
+      
+      <div class="form-group row-color">
+        <label><span class="dot-color" style="background:#00b4ff;"></span> Termo-indykacja (Baza):</label>
+        <input type="color" id="picker-temp" oninput="sendRGBHex('tcolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+      </div>
+      
+      <div class="form-group row-color">
+        <label><span class="dot-color" style="background:#000032;"></span> Ambient Light:</label>
+        <input type="color" id="picker-ambient" oninput="sendRGBHex('acolor', this.value)" onfocus="freezeStatus(true)" onchange="freezeStatus(false)">
+      </div>
     </div>
   </div>
 </div>

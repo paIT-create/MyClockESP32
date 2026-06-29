@@ -50,7 +50,7 @@
 // -----------------------------------------------------------------------------
 //                 --- KONFIGURACJA WERSJI HARDWARE ---
 // -----------------------------------------------------------------------------
-#define FW_VERSION "Beta*[NEOPIXEL/CC/CA]202606.1.9.0-Versatile NeonAction"
+#define FW_VERSION "[NEOPIXEL/CC/CA]202606.1.9.0-Versatile NeonAction [Beta]"
 
 // =============================================================================
 // SELEKTOR ARCHITEKTURY - WYBÓR WYŚWIETLACZA
@@ -153,7 +153,7 @@ static const uint8_t FONT_MINUS = SEG_G;
 static const uint8_t FONT_BLANK = 0;
 static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G;
 static const uint8_t FONT_C = SEG_A | SEG_D | SEG_E | SEG_F;
-static const uint8_t FONT_T = SEG_D | SEG_E | SEG_F | SEG_G;
+static const uint8_t FONT_T = SEG_D | SEG_E | SEG_F | SEG_G;  // t
 
 // -----------------------------------------------------------------------------
 // Globalny stan urządzenia
@@ -174,7 +174,6 @@ volatile bool g_showTemp = false;
 volatile bool g_showBootId = true;
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
-bool g_tempErrorBeepDone = false;  // Flaga zapobiegająca zapętleniu dźwięku awarii czujnika temperatury
 
 // WiFi watchdog & OTA
 volatile bool g_forceWifiDot = false;
@@ -215,6 +214,7 @@ int g_alarmMelody = 0;                    // Wybór melodii (0 - klasyk, 1 - rad
 uint8_t g_alarmDays = 127;                // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 = wszystkie dni.
 volatile bool g_isAlarming = false;       // Flaga, czy budzik aktualnie gra
 int g_hNightStart = 22, g_hNightEnd = 6;  // Tryb nocny w godzinach: domyślnie 22:00 - 6:00
+bool g_tempErrorBeepDone = false;         // Flaga zapobiegająca zapętleniu dźwięku awarii czujnika temperatury
 
 // =============================================================================
 // LOGIKA NOCNA (Wspólna dla obu architektur)
@@ -228,7 +228,6 @@ bool isItNightRightNow() {
     return (g_hour >= g_hNightStart && g_hour < g_hNightEnd);
   }
 }
-
 // =============================================================================
 // FORMATOWANIE ZNAKÓW I CZCIONKI (Wspólne helpery)
 // =============================================================================
@@ -252,7 +251,6 @@ int getDS18B20Resolution() {
   if (!sensors.getAddress(addr, 0)) return -1;
   return sensors.getResolution(addr);
 }
-
 // =============================================================================
 //                --- ARCHITEKTURA NEOPIXEL (SK6812) ---
 // =============================================================================
@@ -596,14 +594,7 @@ void BrightnessTask(void *pv) {
       //   lastAppliedBrightness = target;
       // }
 
-      // TWARDE, BEZWARUNKOWE ODŚWIEŻANIE CO 200MS dla płynności Fade i Tęczy
-      // strip.setBrightness(target);
-      // refreshNeoDisplay();  // Wylicza barwy w RAM
-      // strip.show();         // Wysyła dane 5 razy na sekundę. Pełna płynność!
-
-      // lastDisplayedSecond = g_second;
-      // lastAppliedBrightness = target;
-
+      // --- Wersja dla efektu FADE ---
       // Wykrywamy nową sekundę i uzbrajamy licznik kroków Fade
       if (g_second != lastDisplayedSecond) {
         // Wykrywamy nową sekundę i uzbrajamy licznik na 7 kroków (7 * 50ms = 350ms idealnego płynnego przejścia)
@@ -646,7 +637,7 @@ void BrightnessTask(void *pv) {
 #endif
 
     // Próbkowanie automatyki co 200ms zapewnia idealną, płynną reakcję na suwaki
-    // Zmiana taktowania na 50ms (Dla idealnej, kinowej płynności fali Fade!)
+    // Zmiana taktowania na 50ms (Dla idealnej, kinowej płynności fali Fade)
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
@@ -869,10 +860,10 @@ void LogicTask(void *pv) {
   }
 }
 #endif
-
 // =============================================================================
 //      --- ROZBUDOWANY SILNIK NEOPIXEL (Obsługa Sekwencji Temp/Czas) ---
 // =============================================================================
+
 // #ifdef DISPLAY_TYPE_NEOPIXEL
 // void refreshNeoDisplay() {
 //   strip.clear();
@@ -1020,6 +1011,8 @@ void LogicTask(void *pv) {
 //   setAmbientNeo(colorAmbient);
 // }
 // #endif
+
+// --- Wersja z efektem Fade ---
 #ifdef DISPLAY_TYPE_NEOPIXEL
 // Tablice pamiętające AKTUALNĄ jasność (0-255) dla każdego z 14 segmentów na sekundniku (2 cyfry x 7 segmentów)
 static uint8_t g_segBright[14] = { 0 };
@@ -1121,7 +1114,7 @@ void refreshNeoDisplay() {
 
   if (showTempNow && g_tempValid && !isnan(g_tempC)) {
     // =========================================================================
-    //   TRYB TEMPERATURY SMART: Kolor dostosowuje się sam do pogody w pokoju!
+    //   TRYB TEMPERATURY SMART: Kolor dostosowuje się sam do pogody w pokoju
     // =========================================================================
     int temp = (int)roundf(g_tempC);
 
@@ -1229,13 +1222,6 @@ void wifiWatchdog() {
 // =============================================================================
 //         --- ZARZĄDZANIE PAMIĘCIĄ NIEULOTNĄ NVS (PREFERENCES) ---
 // =============================================================================
-// W loadSettings():
-
-// W saveSettings():
-
-// W resetSettings():
-
-
 void saveSettings() {
   prefs.begin("clock", false);
   prefs.putUChar("bright", g_brightness);
@@ -1468,7 +1454,7 @@ void WiFiTask(void *pv) {
 
   // SELEKTOR ARCHITEKTURY: Uruchomienie właściwego ekranu powitalnego ID
 #ifdef DISPLAY_TYPE_NEOPIXEL
-  //showBootId6(); // Wersja na 6 cyfr NeoPixel
+  //showBootId6(); // Wersja na 6 cyfr NeoPixel, przeniesiona do funkcji BrightnessTask()
 #else
   showBootId4();  // Wersja standardowa na 4 cyfry LED
 #endif
@@ -1504,9 +1490,9 @@ void WiFiTask(void *pv) {
     uint32_t otaColor = strip.Color(g_colTimeR, g_colTimeG, g_colTimeB);
     //clearNeoDisplay();  // Czyszczenie ekranu przed zalaniem danymi OTA
     strip.clear();
-    setDigitNeo(0, FONT_HEX[0], otaColor);
-    setDigitNeo(1, FONT_T, otaColor);
-    setDigitNeo(2, FONT_HEX[10], otaColor);
+    setDigitNeo(0, FONT_HEX[0], otaColor);   // O
+    setDigitNeo(1, FONT_T, otaColor);        // t
+    setDigitNeo(2, FONT_HEX[10], otaColor);  // A
     strip.show();
 #endif
   });
@@ -1757,7 +1743,7 @@ void WiFiTask(void *pv) {
   for (;;) {
     // Automatyczna synchronizacja czasu po raz pierwszy, gdy tylko złapiemy zasięg routera
     if (!firstSyncDone && WiFi.status() == WL_CONNECTED) {
-      Serial.println("WiFi połączone, uruchamiam NTP... v1.9");
+      Serial.println("WiFi połączone, uruchamiam NTP...");
       setupTime();
       firstSyncDone = true;
     }
@@ -1777,14 +1763,13 @@ void WiFiTask(void *pv) {
   }
 }
 
-
 // =============================================================================
 //          --- GŁÓWNA PROCEDURA URUCHOMIENIOWA SYSTEMU (SETUP) ---
 // =============================================================================
 void setup() {
   Serial.begin(115200);
   delay(10);  // Krótki czas na ustabilizowanie UART portu szeregowego
-  Serial.println("\n🚀 SYSTEM: Rozpoczynam rozruch MyClock ESP32 v1.9...");
+  Serial.println("\n🚀 SYSTEM: Rozpoczynam rozruch MyClock ESP32 ...");
 
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
@@ -1793,7 +1778,7 @@ void setup() {
   WiFi.setAutoReconnect(false);
   WiFi.persistent(false);
 
-  // Ustalenie interwału odpytywania serwerów czasu (Standardowo: 1.5 godziny)
+  // Ustalenie interwału odpytywania serwerów czasu (1.5 godziny, domyślny to 3h)
   sntp_set_sync_interval(5400000);
 
   // Rejestracja callbacku powiadomienia o udanej synchronizacji czasu NTP
@@ -1830,13 +1815,13 @@ void setup() {
 
   // Rozruch czujnika temperatury Dallas (1-Wire)
   sensors.begin();
-  sensors.setWaitForConversion(false);  // Wyłączenie blokowania wątku na czas konwersji bitów [INDEX]
+  sensors.setWaitForConversion(false);  // Wyłączenie blokowania wątku na czas konwersji bitów
 
   // Konfiguracja sprzętowego Watchdoga (WDT) zabezpieczającego przed zawieszeniem pętli
   esp_task_wdt_init(30, true);  // 30 sekund tolerancji przed twardym resetem procesora
   esp_task_wdt_add(NULL);       // Objęcie monitoringiem głównego wątku (rdzeń 1, pętla loop)
 
-  // SELEKTOR SPRZĘTOWY: Aktywacja timera przerwaniowego multipleksacji (Tylko dla starych kości LED) [INDEX]
+  // SELEKTOR SPRZĘTOWY: Aktywacja timera przerwaniowego multipleksacji (Tylko dla starych kości LED)
 #ifndef DISPLAY_TYPE_NEOPIXEL
   displayTimer = timerBegin(0, 80, true);
   timerAttachInterrupt(displayTimer, &onDisplayTimer, true);
@@ -1871,7 +1856,8 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
 #endif
 
-  Serial.println("📋 HARMONOGRAM: Wszystkie zadania FreeRTOS zostały pomyślnie przydzielone do rdzeni. Soft v1.9 aktywny.");
+  Serial.printf("📋 HARMONOGRAM: Wszystkie zadania FreeRTOS zostały pomyślnie przydzielone do rdzeni.\n");
+  Serial.printf("📋 HARMONOGRAM: Soft %s aktywny.\n", FW_VERSION);
 }
 
 // =============================================================================
