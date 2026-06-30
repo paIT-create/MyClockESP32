@@ -1,7 +1,7 @@
 /*
   ESP32 Clock + Thermometer (DS18B20)
   Ultra-Stable & Versatile Edition v1.9 (2026-06)
-  LED 4x7seg (CC/CA) via 74HC595 + (ULN2803/PNP) or NEOPIXEL (144x SK6812)
+  LED 4x7seg (CC/CA) via 74HC595 + ULN2803/PNP or NEOPIXEL (144x SK6812)
   ✔ Automatyczna separacja zasobów LED 7-Seg vs NeoPixel (SK6812)
   ✔ Pełna unifikacja logiki LDR, Alarmów i statusu WebUI
 
@@ -83,7 +83,7 @@ static const int NUM_LEDS = 144;
 Adafruit_NeoPixel strip(NUM_LEDS, PIN_NEO_DATA, NEO_GRB + NEO_KHZ800);
 // --- PALETA BARW DLA ARCHITEKTURY NEOPIXEL ---
 // Każdy element ma teraz swoje własne niezależne bajty R, G, B
-// 1. Godziny i Minuty (Domyślnie: Twój luksusowy złoty)
+// 1. Godziny i Minuty (Domyślnie: złoty)
 //uint8_t g_colTimeR = 255, g_colTimeG = 100, g_colTimeB = 0;
 uint8_t g_colTimeR = 255, g_colTimeG = 0, g_colTimeB = 0;
 // 2. Sekundy (Domyślnie: Ciepły pomarańcz, lekko zbliżony do złotego)
